@@ -3,9 +3,12 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <WinSock2.h>
 #include <mswsock.h>
+#include <tchar.h>
 #include <windows.h>
 
+#include <iostream>
 #include <vector>
+#include <string>
 
 #pragma comment(lib, "ws2_32")
 
@@ -13,6 +16,7 @@ static LPFN_ACCEPTEX s_fnAcceptEx;
 static LPFN_GETACCEPTEXSOCKADDRS s_fnGetAcceptExSockAddrs;
 
 static const size_t BUF_SIZE = 64 * 1024 * 1024;
+static const TCHAR* const s_className = _T("{2FF09706-39AD-4FA0-B137-C4416E39C973}");
 
 struct OpType
 {
@@ -125,10 +129,7 @@ struct AcceptIOContext : BaseIOContext
     char buf[(sizeof(SOCKADDR_IN) + 16) * 2];
 };
 
-struct ServerSocketContext
-{
-    SOCKET fd;
-};
+struct ReadIOContext;
 
 struct ClientSocketContext
 {
@@ -141,6 +142,24 @@ struct ClientSocketContext
     SOCKET fd;
     SOCKADDR_IN local;
     SOCKADDR_IN remote;
+
+    void _Read();
+    void _Read(ReadIOContext* io);
+};
+
+struct ServerSocketContext
+{
+    HANDLE hiocp;
+    SOCKET fd;
+    HWND hwnd;
+
+    ClientSocketContext* _OnAccept(AcceptIOContext* io)
+    {
+        auto client = new ClientSocketContext(io->fd);
+        io->GetAddresses(&client->local, &client->remote);
+        ::CreateIoCompletionPort((HANDLE)client->fd, hiocp, (ULONG_PTR)this, 0);
+        return client;
+    }
 };
 
 
@@ -174,6 +193,31 @@ struct ReadIOContext : BaseIOContext
     char buf[BUF_SIZE];
 };
 
+void ClientSocketContext::_Read()
+{
+    for(;;) {
+        auto readio = new ReadIOContext(this);
+        WSARet ret = readio->Read();
+        if(ret.Succ()) {
+            _Read(readio);
+        }
+        else if(ret.Fail()) {
+
+        }
+        else if(ret.Async()) {
+            break;
+        }
+    }
+}
+
+void ClientSocketContext::_Read(ReadIOContext* io)
+{
+    DWORD dwBytes = 0;
+    DWORD dwFlags = 0;
+    WSAGetOverlappedResult(fd, &io->overlapped, &dwBytes, FALSE, &dwFlags);
+    std::cout << std::string(io->wsabuf.buf, dwBytes);
+}
+
 static unsigned int __stdcall worker_thread(void* tag)
 {
     HANDLE hIocp = static_cast<HANDLE>(tag);
@@ -187,22 +231,32 @@ static unsigned int __stdcall worker_thread(void* tag)
 
         if(pIoContext->optype == OpType::Accept) {
             auto acceptio = static_cast<AcceptIOContext*>(pIoContext);
-            auto client = new ClientSocketContext(acceptio->fd);
-            acceptio->GetAddresses(&client->local, &client->remote);
-            auto readio = new ReadIOContext(client);
-            auto ret = readio->Read();
-            assert(ret.Async());
+            auto client = pServerContext->_OnAccept(acceptio);
+            client->_Read();
         }
         else if(pIoContext->optype == OpType::Read) {
-
+            auto readio = static_cast<ReadIOContext*>(pIoContext);
+            readio->client->_Read(readio);
+            readio->client->_Read();
         }
         else if(pIoContext->optype == OpType::Init) {
             auto initio = static_cast<InitIOContext*>(pIoContext);
             auto acceptio = new AcceptIOContext();
             auto ret = acceptio->Accept(pServerContext->fd);
-            assert(ret.Async());
+            if(ret.Succ()) {
+                auto client = pServerContext->_OnAccept(acceptio);
+                client->_Read();
+            }
+            else if(ret.Async()) {
+
+            }
         }
     }
+}
+
+static LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    return ::DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 
 int main()
@@ -217,6 +271,7 @@ int main()
     assert(sckServer != INVALID_SOCKET);
 
     auto ctx = new ServerSocketContext();
+    ctx->hiocp = hIocp;
     ctx->fd = sckServer;
     hIocp = ::CreateIoCompletionPort((HANDLE)sckServer, hIocp, (ULONG_PTR)ctx, 0);
     assert(hIocp != nullptr);
@@ -263,8 +318,28 @@ int main()
         _beginthreadex(nullptr, 0, worker_thread, (void*)hIocp, 0, nullptr);
     }
 
+    WNDCLASSEX wc = {sizeof(wc)};
+    wc.hInstance = ::GetModuleHandle(nullptr);
+    wc.lpfnWndProc = WndProc;
+    wc.lpszClassName = s_className;
+    ::RegisterClassEx(&wc);
+
+    ctx->hwnd = ::CreateWindowEx(
+        0, s_className, nullptr, 0, 
+        0, 0, 0, 0,
+        HWND_MESSAGE, nullptr, 
+        nullptr, nullptr
+    );
+
+    assert(ctx->hwnd != nullptr);
+
     auto io = new InitIOContext();
     PostQueuedCompletionStatus(hIocp, 0, (ULONG_PTR)ctx, &io->overlapped);
 
-    Sleep(INFINITE);
+    MSG msg;
+    while(::GetMessage(&msg, nullptr, 0, 0)) {
+        DispatchMessage(&msg);
+    }
+
+    return (int)msg.wParam;
 }
