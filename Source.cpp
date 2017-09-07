@@ -329,6 +329,7 @@ struct ServerSocketContext : public BaseSocketContext
     {
         auto client = new ClientSocketContext(_disp, io->fd);
         io->GetAddresses(&client->local, &client->remote);
+        ::SetFileCompletionNotificationModes((HANDLE)io->fd, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS);
         ::CreateIoCompletionPort((HANDLE)client->fd, hiocp, (ULONG_PTR)static_cast<BaseSocketContext*>(client), 0);
         _onAccepted(client);
         return client;
@@ -440,7 +441,7 @@ int main()
 
     SOCKADDR_IN addrServer = {0};
     addrServer.sin_family = AF_INET;
-    addrServer.sin_addr.s_addr = inet_addr("127.0.0.1");
+    addrServer.sin_addr.s_addr = inet_addr("0.0.0.0");
     addrServer.sin_port = htons(8080);
 
     if(bind(sckServer, (sockaddr*)&addrServer, sizeof(addrServer)) == SOCKET_ERROR)
