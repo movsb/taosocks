@@ -288,7 +288,7 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
     void _OnRead(ReadIOContext* io, bool inThread = true)
     {
         if(inThread) {
-            return _disp->Dispatch(this, io);
+            return _disp->Dispatch(this, static_cast<BaseIOContext*>(io));
         }
 
         DWORD dwBytes = 0;
@@ -329,7 +329,7 @@ struct ServerSocketContext : public BaseSocketContext
     {
         auto client = new ClientSocketContext(_disp, io->fd);
         io->GetAddresses(&client->local, &client->remote);
-        ::CreateIoCompletionPort((HANDLE)client->fd, hiocp, (ULONG_PTR)client, 0);
+        ::CreateIoCompletionPort((HANDLE)client->fd, hiocp, (ULONG_PTR)static_cast<BaseSocketContext*>(client), 0);
         _onAccepted(client);
         return client;
     }
