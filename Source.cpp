@@ -1,6 +1,7 @@
+#define _CRT_SECURE_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <cassert>
 #include <process.h>
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <WinSock2.h>
 #include <mswsock.h>
 #include <tchar.h>
@@ -9,6 +10,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cstring>
+#include <functional>
 
 #pragma comment(lib, "ws2_32")
 
@@ -17,6 +20,20 @@ static LPFN_GETACCEPTEXSOCKADDRS s_fnGetAcceptExSockAddrs;
 
 static const size_t BUF_SIZE = 64 * 1024 * 1024;
 static const TCHAR* const s_className = _T("{2FF09706-39AD-4FA0-B137-C4416E39C973}");
+
+static std::string to_string(const SOCKADDR_IN& r)
+{
+    // 111.111.111.111:12345
+    char buf[22];
+    sprintf(buf, "%d.%d.%d.%d:%d",
+        r.sin_addr.S_un.S_un_b.s_b1,
+        r.sin_addr.S_un.S_un_b.s_b2,
+        r.sin_addr.S_un.S_un_b.s_b3,
+        r.sin_addr.S_un.S_un_b.s_b4,
+        ntohs(r.sin_port)
+    );
+    return buf;
+}
 
 struct OpType
 {
@@ -131,7 +148,12 @@ struct AcceptIOContext : BaseIOContext
 
 struct ReadIOContext;
 
-struct ClientSocketContext
+struct BaseSocketContext
+{
+
+};
+
+struct ClientSocketContext : public BaseSocketContext
 {
     ClientSocketContext(SOCKET fd)
         : fd(fd)
@@ -144,41 +166,69 @@ struct ClientSocketContext
     SOCKADDR_IN remote;
 
     void _Read();
-    void _Read(ReadIOContext* io);
+    void _OnRead(ReadIOContext* io);
 };
 
-struct ServerSocketContext
+struct ServerSocketContext : public BaseSocketContext
 {
     HANDLE hiocp;
     SOCKET fd;
     HWND hwnd;
+    std::function<void(ClientSocketContext*)> _onAccepted;
 
-    ClientSocketContext* _OnAccept(AcceptIOContext* io)
+    void OnAccepted(std::function<void(ClientSocketContext*)> onAccepted)
+    {
+        _onAccepted = onAccepted;
+    }
+
+    ClientSocketContext* _OnAccepted(AcceptIOContext* io)
     {
         auto client = new ClientSocketContext(io->fd);
         io->GetAddresses(&client->local, &client->remote);
-        ::CreateIoCompletionPort((HANDLE)client->fd, hiocp, (ULONG_PTR)this, 0);
+        ::CreateIoCompletionPort((HANDLE)client->fd, hiocp, (ULONG_PTR)client, 0);
+        _onAccepted(client);
         return client;
+    }
+
+    std::vector<ClientSocketContext*> _Accept()
+    {
+        std::vector<ClientSocketContext*> clients;
+
+        for(;;) {
+            auto acceptio = new AcceptIOContext();
+            auto ret = acceptio->Accept(fd);
+            if(ret.Succ()) {
+                auto client = _OnAccepted(acceptio);
+                clients.push_back(client);
+            }
+            else if(ret.Fail()) {
+                assert(0);
+            }
+            else if(ret.Async()) {
+                break;
+            }
+        }
+
+        return std::move(clients);
     }
 };
 
 
 struct ReadIOContext : BaseIOContext
 {
-    ReadIOContext(ClientSocketContext* client)
+    ReadIOContext()
         : BaseIOContext(OpType::Read)
-        , client(client)
     {
         wsabuf.buf = buf;
         wsabuf.len = _countof(buf);
     }
 
-    WSARet Read()
+    WSARet Read(SOCKET fd)
     {
         DWORD dwFlags = 0;
 
         WSAIntRet R = ::WSARecv(
-            client->fd,
+            fd,
             &wsabuf, 1, nullptr,
             &dwFlags,
             &overlapped,
@@ -188,7 +238,6 @@ struct ReadIOContext : BaseIOContext
         return R;
     }
 
-    ClientSocketContext* client;
     WSABUF wsabuf;
     char buf[BUF_SIZE];
 };
@@ -196,13 +245,13 @@ struct ReadIOContext : BaseIOContext
 void ClientSocketContext::_Read()
 {
     for(;;) {
-        auto readio = new ReadIOContext(this);
-        WSARet ret = readio->Read();
+        auto readio = new ReadIOContext();
+        WSARet ret = readio->Read(fd);
         if(ret.Succ()) {
-            _Read(readio);
+            _OnRead(readio);
         }
         else if(ret.Fail()) {
-
+            assert(0);
         }
         else if(ret.Async()) {
             break;
@@ -210,7 +259,7 @@ void ClientSocketContext::_Read()
     }
 }
 
-void ClientSocketContext::_Read(ReadIOContext* io)
+void ClientSocketContext::_OnRead(ReadIOContext* io)
 {
     DWORD dwBytes = 0;
     DWORD dwFlags = 0;
@@ -221,35 +270,35 @@ void ClientSocketContext::_Read(ReadIOContext* io)
 static unsigned int __stdcall worker_thread(void* tag)
 {
     HANDLE hIocp = static_cast<HANDLE>(tag);
+    BaseSocketContext* pBaseSocket;
     ServerSocketContext* pServerContext;
+    ClientSocketContext* pClientSocket;
     BaseIOContext* pIoContext;
+    ReadIOContext* readio;
+    AcceptIOContext* acceptio;
     DWORD dwBytesTransfered;
 
     while(true) {
-        BOOL bRet = GetQueuedCompletionStatus(hIocp, &dwBytesTransfered, (PULONG_PTR)&pServerContext, (LPOVERLAPPED*)&pIoContext, INFINITE);
+        BOOL bRet = GetQueuedCompletionStatus(hIocp, &dwBytesTransfered, (PULONG_PTR)&pBaseSocket, (LPOVERLAPPED*)&pIoContext, INFINITE);
         assert(bRet != FALSE);
 
         if(pIoContext->optype == OpType::Accept) {
-            auto acceptio = static_cast<AcceptIOContext*>(pIoContext);
-            auto client = pServerContext->_OnAccept(acceptio);
-            client->_Read();
+            pServerContext = static_cast<ServerSocketContext*>(pBaseSocket);
+            acceptio = static_cast<AcceptIOContext*>(pIoContext);
+            pClientSocket = pServerContext->_OnAccepted(acceptio);
+            pClientSocket->_Read();
         }
         else if(pIoContext->optype == OpType::Read) {
-            auto readio = static_cast<ReadIOContext*>(pIoContext);
-            readio->client->_Read(readio);
-            readio->client->_Read();
+            pClientSocket = static_cast<ClientSocketContext*>(pBaseSocket);
+            readio = static_cast<ReadIOContext*>(pIoContext);
+            pClientSocket->_OnRead(readio);
+            pClientSocket->_Read();
         }
         else if(pIoContext->optype == OpType::Init) {
             auto initio = static_cast<InitIOContext*>(pIoContext);
-            auto acceptio = new AcceptIOContext();
-            auto ret = acceptio->Accept(pServerContext->fd);
-            if(ret.Succ()) {
-                auto client = pServerContext->_OnAccept(acceptio);
-                client->_Read();
-            }
-            else if(ret.Async()) {
-
-            }
+            delete initio;
+            pServerContext = static_cast<ServerSocketContext*>(pBaseSocket);
+            pServerContext->_Accept();
         }
     }
 }
@@ -332,6 +381,10 @@ int main()
     );
 
     assert(ctx->hwnd != nullptr);
+
+    ctx->OnAccepted([](ClientSocketContext* client) {
+        std::printf("客户端连接：%s", to_string(client->remote).c_str());
+    });
 
     auto io = new InitIOContext();
     PostQueuedCompletionStatus(hIocp, 0, (ULONG_PTR)ctx, &io->overlapped);
