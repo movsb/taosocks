@@ -329,7 +329,6 @@ struct ServerSocketContext : public BaseSocketContext
     {
         auto client = new ClientSocketContext(_disp, io->fd);
         io->GetAddresses(&client->local, &client->remote);
-        ::SetFileCompletionNotificationModes((HANDLE)io->fd, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS);
         ::CreateIoCompletionPort((HANDLE)client->fd, hiocp, (ULONG_PTR)static_cast<BaseSocketContext*>(client), 0);
         _onAccepted(client);
         return client;
@@ -365,7 +364,7 @@ void ClientSocketContext::_Read()
         auto readio = new ReadIOContext();
         WSARet ret = readio->Read(fd);
         if(ret.Succ()) {
-            _OnRead(readio);
+
         }
         else if(ret.Fail()) {
             assert(0);
