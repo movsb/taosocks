@@ -46,6 +46,89 @@ struct OpType
     };
 };
 
+struct ISocketDispatcher
+{
+    virtual void Invoke(void* data) = 0;
+};
+
+struct SocketDispatcher
+{
+    HWND hwnd;
+    static const UINT msg = WM_USER + 0;
+
+    SocketDispatcher()
+    {
+        Init();
+    }
+
+    void Dispatch(ISocketDispatcher* disp, void* data)
+    {
+        ::SendMessage(hwnd, msg, WPARAM(disp), LPARAM(data));
+    }
+
+    void Init()
+    {
+        WNDCLASSEX wc = {sizeof(wc)};
+        wc.hInstance = ::GetModuleHandle(nullptr);
+        wc.lpfnWndProc = __WndProc;
+        wc.lpszClassName = s_className;
+        wc.cbWndExtra = sizeof(void*);
+        ::RegisterClassEx(&wc);
+
+        hwnd = ::CreateWindowEx(
+            0, s_className, nullptr, 0, 
+            0, 0, 0, 0,
+            HWND_MESSAGE, nullptr, 
+            nullptr,
+            this
+        );
+
+        assert(hwnd != nullptr);
+    }
+
+    int Run()
+    {
+        MSG msg;
+        while(::GetMessage(&msg, nullptr, 0, 0)) {
+            DispatchMessage(&msg);
+        }
+        return (int)msg.wParam;
+    }
+
+    LRESULT WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+    {
+        if(uMsg == msg) {
+            auto pDisp = reinterpret_cast<ISocketDispatcher*>(wParam);
+            auto pData = reinterpret_cast<void*>(lParam);
+            pDisp->Invoke(pData);
+            return 0;
+        }
+
+        return ::DefWindowProc(hWnd, uMsg, wParam, lParam);
+    }
+
+    static LRESULT __stdcall __WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+    {
+        auto pThis = (SocketDispatcher*)::GetWindowLongPtr(hWnd, 0);
+
+        switch(uMsg)
+        {
+        case WM_NCCREATE:
+            pThis = (SocketDispatcher*)LPCREATESTRUCT(lParam)->lpCreateParams;
+            ::SetWindowLongPtr(hWnd, 0, (LONG)pThis);
+            break;
+        case WM_NCDESTROY:
+            pThis = nullptr;
+            ::SetWindowLongPtr(hWnd, 0, 0);
+            break;
+        }
+
+        return pThis
+            ? pThis->WndProc(hWnd, uMsg, wParam, lParam)
+            : ::DefWindowProc(hWnd, uMsg, wParam, lParam);
+    }
+};
+
 class WSARet
 {
 public:
@@ -146,17 +229,45 @@ struct AcceptIOContext : BaseIOContext
     char buf[(sizeof(SOCKADDR_IN) + 16) * 2];
 };
 
-struct ReadIOContext;
+struct ReadIOContext : BaseIOContext
+{
+    ReadIOContext()
+        : BaseIOContext(OpType::Read)
+    {
+        wsabuf.buf = (char*)buf;
+        wsabuf.len = _countof(buf);
+    }
+
+    WSARet Read(SOCKET fd)
+    {
+        DWORD dwFlags = 0;
+
+        WSAIntRet R = ::WSARecv(
+            fd,
+            &wsabuf, 1, nullptr,
+            &dwFlags,
+            &overlapped,
+            nullptr
+        );
+
+        return R;
+    }
+
+    WSABUF wsabuf;
+    unsigned char buf[BUF_SIZE];
+};
+
 
 struct BaseSocketContext
 {
 
 };
 
-struct ClientSocketContext : public BaseSocketContext
+struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
 {
-    ClientSocketContext(SOCKET fd)
+    ClientSocketContext(SocketDispatcher* disp, SOCKET fd)
         : fd(fd)
+        , _disp(disp)
     {
 
     }
@@ -164,9 +275,36 @@ struct ClientSocketContext : public BaseSocketContext
     SOCKET fd;
     SOCKADDR_IN local;
     SOCKADDR_IN remote;
+    typedef std::function<void(unsigned char*, size_t)> OnReadT;
+    OnReadT _onRead;
+    SocketDispatcher* _disp;
 
+    void OnRead(OnReadT onRead)
+    {
+        _onRead = onRead;
+    }
     void _Read();
-    void _OnRead(ReadIOContext* io);
+
+    void _OnRead(ReadIOContext* io, bool inThread = true)
+    {
+        if(inThread) {
+            return _disp->Dispatch(this, io);
+        }
+
+        DWORD dwBytes = 0;
+        DWORD dwFlags = 0;
+        WSAGetOverlappedResult(fd, &io->overlapped, &dwBytes, FALSE, &dwFlags);
+        _onRead(io->buf, dwBytes);
+    }
+
+    virtual void Invoke(void * data) override
+    {
+        auto pBaseContext = static_cast<BaseIOContext*>(data);
+        if(pBaseContext->optype == OpType::Read) {
+            auto io = static_cast<ReadIOContext*>(pBaseContext);
+            _OnRead(io, false);
+        }
+    }
 };
 
 struct ServerSocketContext : public BaseSocketContext
@@ -175,6 +313,12 @@ struct ServerSocketContext : public BaseSocketContext
     SOCKET fd;
     HWND hwnd;
     std::function<void(ClientSocketContext*)> _onAccepted;
+    SocketDispatcher* _disp;
+
+    ServerSocketContext(SocketDispatcher* disp)
+    {
+        _disp = disp;
+    }
 
     void OnAccepted(std::function<void(ClientSocketContext*)> onAccepted)
     {
@@ -183,7 +327,7 @@ struct ServerSocketContext : public BaseSocketContext
 
     ClientSocketContext* _OnAccepted(AcceptIOContext* io)
     {
-        auto client = new ClientSocketContext(io->fd);
+        auto client = new ClientSocketContext(_disp, io->fd);
         io->GetAddresses(&client->local, &client->remote);
         ::CreateIoCompletionPort((HANDLE)client->fd, hiocp, (ULONG_PTR)client, 0);
         _onAccepted(client);
@@ -214,34 +358,6 @@ struct ServerSocketContext : public BaseSocketContext
 };
 
 
-struct ReadIOContext : BaseIOContext
-{
-    ReadIOContext()
-        : BaseIOContext(OpType::Read)
-    {
-        wsabuf.buf = buf;
-        wsabuf.len = _countof(buf);
-    }
-
-    WSARet Read(SOCKET fd)
-    {
-        DWORD dwFlags = 0;
-
-        WSAIntRet R = ::WSARecv(
-            fd,
-            &wsabuf, 1, nullptr,
-            &dwFlags,
-            &overlapped,
-            nullptr
-        );
-
-        return R;
-    }
-
-    WSABUF wsabuf;
-    char buf[BUF_SIZE];
-};
-
 void ClientSocketContext::_Read()
 {
     for(;;) {
@@ -257,14 +373,6 @@ void ClientSocketContext::_Read()
             break;
         }
     }
-}
-
-void ClientSocketContext::_OnRead(ReadIOContext* io)
-{
-    DWORD dwBytes = 0;
-    DWORD dwFlags = 0;
-    WSAGetOverlappedResult(fd, &io->overlapped, &dwBytes, FALSE, &dwFlags);
-    std::cout << std::string(io->wsabuf.buf, dwBytes);
 }
 
 static unsigned int __stdcall worker_thread(void* tag)
@@ -298,7 +406,10 @@ static unsigned int __stdcall worker_thread(void* tag)
             auto initio = static_cast<InitIOContext*>(pIoContext);
             delete initio;
             pServerContext = static_cast<ServerSocketContext*>(pBaseSocket);
-            pServerContext->_Accept();
+            auto clients = pServerContext->_Accept();
+            for(auto& client : clients) {
+                client->_Read();
+            }
         }
     }
 }
@@ -319,7 +430,9 @@ int main()
     SOCKET sckServer = WSASocket(AF_INET, SOCK_STREAM, 0, nullptr, 0, WSA_FLAG_OVERLAPPED);
     assert(sckServer != INVALID_SOCKET);
 
-    auto ctx = new ServerSocketContext();
+    auto dispatcher = new SocketDispatcher();
+
+    auto ctx = new ServerSocketContext(dispatcher);
     ctx->hiocp = hIocp;
     ctx->fd = sckServer;
     hIocp = ::CreateIoCompletionPort((HANDLE)sckServer, hIocp, (ULONG_PTR)ctx, 0);
@@ -367,32 +480,15 @@ int main()
         _beginthreadex(nullptr, 0, worker_thread, (void*)hIocp, 0, nullptr);
     }
 
-    WNDCLASSEX wc = {sizeof(wc)};
-    wc.hInstance = ::GetModuleHandle(nullptr);
-    wc.lpfnWndProc = WndProc;
-    wc.lpszClassName = s_className;
-    ::RegisterClassEx(&wc);
-
-    ctx->hwnd = ::CreateWindowEx(
-        0, s_className, nullptr, 0, 
-        0, 0, 0, 0,
-        HWND_MESSAGE, nullptr, 
-        nullptr, nullptr
-    );
-
-    assert(ctx->hwnd != nullptr);
-
     ctx->OnAccepted([](ClientSocketContext* client) {
-        std::printf("客户端连接：%s", to_string(client->remote).c_str());
+        std::printf("客户端连接：%s\n", to_string(client->remote).c_str());
+        client->OnRead([](unsigned char* data, size_t size) {
+            std::printf("接收到数据：%.*s", size, data);
+        });
     });
 
     auto io = new InitIOContext();
     PostQueuedCompletionStatus(hIocp, 0, (ULONG_PTR)ctx, &io->overlapped);
 
-    MSG msg;
-    while(::GetMessage(&msg, nullptr, 0, 0)) {
-        DispatchMessage(&msg);
-    }
-
-    return (int)msg.wParam;
+    return dispatcher->Run();
 }
