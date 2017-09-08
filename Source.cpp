@@ -244,7 +244,8 @@ struct ReadIOContext : BaseIOContext
 
         WSAIntRet R = ::WSARecv(
             fd,
-            &wsabuf, 1, nullptr,
+            &wsabuf, 1,
+            nullptr,
             &dwFlags,
             &overlapped,
             nullptr
@@ -257,6 +258,33 @@ struct ReadIOContext : BaseIOContext
     unsigned char buf[BUF_SIZE];
 };
 
+struct WriteIOContext : BaseIOContext
+{
+    WriteIOContext()
+        : BaseIOContext(OpType::Write)
+    { }
+
+    WSARet Write(SOCKET fd, const unsigned char* data, size_t size)
+    {
+        DWORD dwFlags = 0;
+
+        wsabuf.buf = (char*)data;
+        wsabuf.len = size;
+
+        WSAIntRet R = ::WSASend(
+            fd,
+            &wsabuf, 1,
+            nullptr,
+            dwFlags,
+            &overlapped,
+            nullptr
+        );
+
+        return R;
+    }
+
+    WSABUF wsabuf;
+};
 
 struct BaseSocketContext
 {
@@ -275,17 +303,70 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
     SOCKET fd;
     SOCKADDR_IN local;
     SOCKADDR_IN remote;
-    typedef std::function<void(unsigned char*, size_t)> OnReadT;
+    typedef std::function<void(ClientSocketContext*, unsigned char*, size_t)> OnReadT;
+    typedef std::function<void(ClientSocketContext*, size_t)> OnWrittenT;
     OnReadT _onRead;
+    OnWrittenT _onWritten;
     SocketDispatcher* _disp;
+
+    void Close()
+    {
+        ::closesocket(fd);
+    }
 
     void OnRead(OnReadT onRead)
     {
         _onRead = onRead;
     }
-    void _Read();
 
-    void _OnRead(ReadIOContext* io, bool inThread = true)
+    void OnWritten(OnWrittenT onWritten)
+    {
+        _onWritten = onWritten;
+    }
+
+    void Write(const char* data, size_t size, void* tag)
+    {
+        return Write((const unsigned char*)data, size, tag);
+    }
+
+    void Write(const char* data, void* tag)
+    {
+        return Write(data, std::strlen(data), tag);
+    }
+
+    void Write(const unsigned char* data, size_t size, void* tag)
+    {
+        auto writeio = new WriteIOContext();
+        auto ret = writeio->Write(fd, data, size);
+        if(ret.Succ()) {
+
+        }
+        else if(ret.Fail()) {
+            assert(0);
+        }
+        else if(ret.Async()) {
+
+        }
+    }
+
+    void _Read()
+    {
+        for(;;) {
+            auto readio = new ReadIOContext();
+            WSARet ret = readio->Read(fd);
+            if(ret.Succ()) {
+
+            }
+            else if(ret.Fail()) {
+                assert(0);
+            }
+            else if(ret.Async()) {
+                break;
+            }
+        }
+    }
+
+    void _OnRead(ReadIOContext* io, bool inThread)
     {
         if(inThread) {
             return _disp->Dispatch(this, static_cast<BaseIOContext*>(io));
@@ -294,7 +375,19 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         DWORD dwBytes = 0;
         DWORD dwFlags = 0;
         WSAGetOverlappedResult(fd, &io->overlapped, &dwBytes, FALSE, &dwFlags);
-        _onRead(io->buf, dwBytes);
+        _onRead(this, io->buf, dwBytes);
+    }
+
+    void _OnWritten(WriteIOContext* io, bool inThread)
+    {
+        if(inThread) {
+            return _disp->Dispatch(this, static_cast<BaseIOContext*>(io));
+        }
+
+        DWORD dwBytes = 0;
+        DWORD dwFlags = 0;
+        WSAGetOverlappedResult(fd, &io->overlapped, &dwBytes, FALSE, &dwFlags);
+        _onWritten(this, dwBytes);
     }
 
     virtual void Invoke(void * data) override
@@ -303,6 +396,10 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         if(pBaseContext->optype == OpType::Read) {
             auto io = static_cast<ReadIOContext*>(pBaseContext);
             _OnRead(io, false);
+        }
+        else if(pBaseContext->optype == OpType::Write) {
+            auto io = static_cast<WriteIOContext*>(pBaseContext);
+            _OnWritten(io, false);
         }
     }
 };
@@ -357,24 +454,6 @@ struct ServerSocketContext : public BaseSocketContext
     }
 };
 
-
-void ClientSocketContext::_Read()
-{
-    for(;;) {
-        auto readio = new ReadIOContext();
-        WSARet ret = readio->Read(fd);
-        if(ret.Succ()) {
-
-        }
-        else if(ret.Fail()) {
-            assert(0);
-        }
-        else if(ret.Async()) {
-            break;
-        }
-    }
-}
-
 static unsigned int __stdcall worker_thread(void* tag)
 {
     HANDLE hIocp = static_cast<HANDLE>(tag);
@@ -383,6 +462,7 @@ static unsigned int __stdcall worker_thread(void* tag)
     ClientSocketContext* pClientSocket;
     BaseIOContext* pIoContext;
     ReadIOContext* readio;
+    WriteIOContext* writeio;
     AcceptIOContext* acceptio;
     DWORD dwBytesTransfered;
 
@@ -399,8 +479,13 @@ static unsigned int __stdcall worker_thread(void* tag)
         else if(pIoContext->optype == OpType::Read) {
             pClientSocket = static_cast<ClientSocketContext*>(pBaseSocket);
             readio = static_cast<ReadIOContext*>(pIoContext);
-            pClientSocket->_OnRead(readio);
+            pClientSocket->_OnRead(readio, true);
             pClientSocket->_Read();
+        }
+        else if(pIoContext->optype == OpType::Write) {
+            pClientSocket = static_cast<ClientSocketContext*>(pBaseSocket);
+            writeio = static_cast<WriteIOContext*>(pIoContext);
+            pClientSocket->_OnWritten(writeio, true);
         }
         else if(pIoContext->optype == OpType::Init) {
             auto initio = static_cast<InitIOContext*>(pIoContext);
@@ -480,10 +565,32 @@ int main()
         _beginthreadex(nullptr, 0, worker_thread, (void*)hIocp, 0, nullptr);
     }
 
+    static std::string res =
+        "HTTP/1.1 200 OK\r\n"
+        "Server: iocp test\r\n"
+        "Content-Type: text/html\r\n"
+        "\r\n"
+        "<!doctype html>\n"
+        "<html>\n"
+        "<head>\n"
+        "<meta charset=\"utf-8\" />\n"
+        "</head>\n"
+        "<body>\n"
+        "<h1>Head</h1>\n"
+        "<p>Paragraph</p>\n"
+        "</body>\n"
+        "</html>"
+        ;
+
     ctx->OnAccepted([](ClientSocketContext* client) {
         std::printf("客户端连接：%s\n", to_string(client->remote).c_str());
-        client->OnRead([](unsigned char* data, size_t size) {
-            std::printf("接收到数据：%.*s", size, data);
+        client->OnRead([](ClientSocketContext* client, unsigned char* data, size_t size) {
+            std::printf("接收到数据：%.*s\n", size, data);
+            client->Write(res.c_str(), nullptr);
+        });
+        client->OnWritten([](ClientSocketContext* client, size_t size) {
+            std::printf("发送了数据：%d 字节\n", size);
+            client->Close();
         });
     });
 
