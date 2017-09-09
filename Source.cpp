@@ -13,6 +13,18 @@
 #include <cstring>
 #include <functional>
 
+//#define TAOLOG_ENABLED
+#define TAOLOG_METHOD_COPYDATA
+
+#include "taolog.h"
+
+#ifdef TAOLOG_ENABLED
+// {DA72210D-0C17-4223-AA34-7EB7EDADB64F}
+static const GUID providerGuid = 
+{ 0xDA72210D, 0x0C17, 0x4223, { 0xAA, 0x34, 0x7E, 0xB7, 0xED, 0xAD, 0xB6, 0x4F } };
+TaoLogger g_taoLogger(providerGuid);
+#endif
+
 #pragma comment(lib, "ws2_32")
 
 static LPFN_ACCEPTEX s_fnAcceptEx;
@@ -312,8 +324,8 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
 
     void Close()
     {
-        printf("关闭client,fd=%d\n", fd);
         int ret = closesocket(fd);
+        LogLog("关闭client,fd=%d,ret=%d", fd, ret);
         assert(ret == 0);
     }
 
@@ -342,13 +354,14 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         auto writeio = new WriteIOContext();
         auto ret = writeio->Write(fd, data, size);
         if(ret.Succ()) {
-
+            LogLog("写立即成功，fd=%d,size=%d", fd, size);
         }
         else if(ret.Fail()) {
+            LogFat("写错误：fd=%d,code=%d", fd, ret.Code());
             assert(0);
         }
         else if(ret.Async()) {
-
+            LogLog("写异步，fd=%d", fd);
         }
     }
 
@@ -357,16 +370,17 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         auto readio = new ReadIOContext();
         WSARet ret = readio->Read(fd);
         if(ret.Succ()) {
-
+            LogLog("_Read 立即成功, fd:%d", fd);
         }
         else if(ret.Closed()) {
-
+            LogWrn("连接关闭 fd:%d", fd);
         }
         else if(ret.Fail()) {
+            LogFat("读错误：fd:%d,code=%d", fd, ret.Code());
             assert(0);
         }
         else if(ret.Async()) {
-
+            LogLog("读异步 fd:%d", fd);
         }
     }
 
@@ -380,12 +394,14 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         DWORD dwFlags = 0;
         WSABoolRet ret = WSAGetOverlappedResult(fd, &io->overlapped, &dwBytes, FALSE, &dwFlags);
         if(ret.Succ()) {
+            LogLog("_OnRead 成功，fd:%d,dwBytes:%d", fd, dwBytes);
             _onRead(this, io->buf, dwBytes);
         }
         else if(ret.Closed()) {
-
+            LogWrn("连接关闭：fd:%d", fd);
         }
         else if(ret.Fail()) {
+            LogFat("读失败：fd=%d,code:%d", fd, ret.Code());
             assert(0);
         }
     }
@@ -453,11 +469,14 @@ struct ServerSocketContext : public BaseSocketContext
             if(ret.Succ()) {
                 auto client = _OnAccepted(acceptio);
                 clients.push_back(client);
+                LogLog("_Accept 立即完成：client fd:%d, remote:%s", client->fd, to_string(client->remote).c_str());
             }
             else if(ret.Fail()) {
+                LogFat("_Accept 错误：code=%d", ret.Code());
                 assert(0);
             }
             else if(ret.Async()) {
+                LogLog("_Accept 异步");
                 break;
             }
         }
@@ -480,6 +499,7 @@ static unsigned int __stdcall worker_thread(void* tag)
 
     while(true) {
         BOOL bRet = GetQueuedCompletionStatus(hIocp, &dwBytesTransfered, (PULONG_PTR)&pBaseSocket, (LPOVERLAPPED*)&pIoContext, INFINITE);
+        LogLog("收到完成端口事件：bRet=%d,dwBytes=%d", bRet, dwBytesTransfered);
         if(bRet == FALSE && dwBytesTransfered == 0 && pIoContext != nullptr && pIoContext->optype == OpType::Read) {
             continue;
         }
@@ -488,24 +508,32 @@ static unsigned int __stdcall worker_thread(void* tag)
             pServerContext = static_cast<ServerSocketContext*>(pBaseSocket);
             acceptio = static_cast<AcceptIOContext*>(pIoContext);
             pClientSocket = pServerContext->_OnAccepted(acceptio);
+            LogLog("接收到客户端连接：fd:%d,local:%s,remote:%s",
+                pClientSocket->fd,
+                to_string(pClientSocket->local).c_str(),
+                to_string(pClientSocket->remote).c_str()
+            );
             pClientSocket->_Read();
             pServerContext->_Accept();
         }
         else if(pIoContext->optype == OpType::Read) {
             pClientSocket = static_cast<ClientSocketContext*>(pBaseSocket);
             readio = static_cast<ReadIOContext*>(pIoContext);
+            LogLog("接收到读完成事件：fd:%d", pClientSocket->fd);
             pClientSocket->_OnRead(readio, true);
             pClientSocket->_Read();
         }
         else if(pIoContext->optype == OpType::Write) {
             pClientSocket = static_cast<ClientSocketContext*>(pBaseSocket);
             writeio = static_cast<WriteIOContext*>(pIoContext);
+            LogLog("接收到写完成事件：fd:%d", pClientSocket->fd);
             pClientSocket->_OnWritten(writeio, true);
         }
         else if(pIoContext->optype == OpType::Init) {
             auto initio = static_cast<InitIOContext*>(pIoContext);
             delete initio;
             pServerContext = static_cast<ServerSocketContext*>(pBaseSocket);
+            LogLog("接收到初始化事件，server fd:%d", pServerContext->fd);
             auto clients = pServerContext->_Accept();
             for(auto& client : clients) {
                 client->_Read();
@@ -516,15 +544,20 @@ static unsigned int __stdcall worker_thread(void* tag)
 
 int main()
 {
-    HANDLE hIocp = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
-    assert(hIocp != nullptr);
+#ifdef TAOLOG_ENABLED
+    g_taoLogger.Init();
+#endif
 
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
 
+    HANDLE hIocp = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
+    assert(hIocp != nullptr);
+    LogLog("IOCP 句柄：%p", hIocp);
+
     SOCKET sckServer = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
     assert(sckServer != INVALID_SOCKET);
-    printf("服务器fd=%d\n", sckServer);
+    LogLog("服务器fd=%d\n", sckServer);
 
     auto dispatcher = new SocketDispatcher();
 
@@ -538,6 +571,7 @@ int main()
     addrServer.sin_family = AF_INET;
     addrServer.sin_addr.s_addr = inet_addr("0.0.0.0");
     addrServer.sin_port = htons(8080);
+    LogLog("监听地址：%s", to_string(addrServer).c_str());
 
     if(bind(sckServer, (sockaddr*)&addrServer, sizeof(addrServer)) == SOCKET_ERROR)
         assert(0);
@@ -574,11 +608,12 @@ int main()
 
     for(auto i = 0; i < 10; i++) {
         _beginthreadex(nullptr, 0, worker_thread, (void*)hIocp, 0, nullptr);
+        LogLog("开启工作线程：%d", i + 1);
     }
 
-    static char* res =
+    static const char* res =
         "HTTP/1.1 200 OK\r\n"
-        "Server: iocp test\r\n"
+        "Server: iocp-demo\r\n"
         "Content-Type: text/html\r\n"
         "Content-Length: 3\r\n"
         "Connection: close\r\n"
@@ -587,14 +622,14 @@ int main()
         ;
 
     ctx->OnAccepted([](ClientSocketContext* client) {
-        std::printf("客户端连接：%s,fd=%d\n", to_string(client->remote).c_str(), client->fd);
+        LogLog("客户端连接：%s,fd=%d\n", to_string(client->remote).c_str(), client->fd);
         client->OnRead([](ClientSocketContext* client, unsigned char* data, size_t size) {
-            std::printf("接收到数据：%.*s\n", size, data);
+            LogLog("接收到数据(fd=%d)：%.*s\n", client->fd, size, data);
             client->Write(res, nullptr);
         });
         client->OnWritten([](ClientSocketContext* client, size_t size) {
-            std::printf("发送了数据：%d 字节\n", size);
-            client->Close();
+            LogLog("发送了数据(fd=%d)：%d 字节\n", client->fd, size);
+            // client->Close();
         });
     });
 
