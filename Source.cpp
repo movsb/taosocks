@@ -18,7 +18,7 @@
 static LPFN_ACCEPTEX s_fnAcceptEx;
 static LPFN_GETACCEPTEXSOCKADDRS s_fnGetAcceptExSockAddrs;
 
-static const size_t BUF_SIZE = 64 * 1024 * 1024;
+static const size_t BUF_SIZE = 64 * 1024;
 static const TCHAR* const s_className = _T("{2FF09706-39AD-4FA0-B137-C4416E39C973}");
 
 static std::string to_string(const SOCKADDR_IN& r)
@@ -141,6 +141,7 @@ public:
     bool Succ()     { return _b; }
     bool Fail()     { return !_b && _e != WSA_IO_PENDING; }
     bool Async()    { return !_b && _e == WSA_IO_PENDING; }
+    bool Closed()   { return !_b && _e == WSAENOTSOCK; }
     int Code()      { return _e; }
 
 private:
@@ -311,7 +312,9 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
 
     void Close()
     {
-        ::closesocket(fd);
+        printf("关闭client,fd=%d\n", fd);
+        int ret = closesocket(fd);
+        assert(ret == 0);
     }
 
     void OnRead(OnReadT onRead)
@@ -351,18 +354,19 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
 
     void _Read()
     {
-        for(;;) {
-            auto readio = new ReadIOContext();
-            WSARet ret = readio->Read(fd);
-            if(ret.Succ()) {
+        auto readio = new ReadIOContext();
+        WSARet ret = readio->Read(fd);
+        if(ret.Succ()) {
 
-            }
-            else if(ret.Fail()) {
-                assert(0);
-            }
-            else if(ret.Async()) {
-                break;
-            }
+        }
+        else if(ret.Closed()) {
+
+        }
+        else if(ret.Fail()) {
+            assert(0);
+        }
+        else if(ret.Async()) {
+
         }
     }
 
@@ -374,8 +378,16 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
 
         DWORD dwBytes = 0;
         DWORD dwFlags = 0;
-        WSAGetOverlappedResult(fd, &io->overlapped, &dwBytes, FALSE, &dwFlags);
-        _onRead(this, io->buf, dwBytes);
+        WSABoolRet ret = WSAGetOverlappedResult(fd, &io->overlapped, &dwBytes, FALSE, &dwFlags);
+        if(ret.Succ()) {
+            _onRead(this, io->buf, dwBytes);
+        }
+        else if(ret.Closed()) {
+
+        }
+        else if(ret.Fail()) {
+            assert(0);
+        }
     }
 
     void _OnWritten(WriteIOContext* io, bool inThread)
@@ -468,13 +480,16 @@ static unsigned int __stdcall worker_thread(void* tag)
 
     while(true) {
         BOOL bRet = GetQueuedCompletionStatus(hIocp, &dwBytesTransfered, (PULONG_PTR)&pBaseSocket, (LPOVERLAPPED*)&pIoContext, INFINITE);
-        assert(bRet != FALSE);
+        if(bRet == FALSE && dwBytesTransfered == 0 && pIoContext != nullptr && pIoContext->optype == OpType::Read) {
+            continue;
+        }
 
         if(pIoContext->optype == OpType::Accept) {
             pServerContext = static_cast<ServerSocketContext*>(pBaseSocket);
             acceptio = static_cast<AcceptIOContext*>(pIoContext);
             pClientSocket = pServerContext->_OnAccepted(acceptio);
             pClientSocket->_Read();
+            pServerContext->_Accept();
         }
         else if(pIoContext->optype == OpType::Read) {
             pClientSocket = static_cast<ClientSocketContext*>(pBaseSocket);
@@ -499,11 +514,6 @@ static unsigned int __stdcall worker_thread(void* tag)
     }
 }
 
-static LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    return ::DefWindowProc(hWnd, uMsg, wParam, lParam);
-}
-
 int main()
 {
     HANDLE hIocp = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
@@ -512,8 +522,9 @@ int main()
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-    SOCKET sckServer = WSASocket(AF_INET, SOCK_STREAM, 0, nullptr, 0, WSA_FLAG_OVERLAPPED);
+    SOCKET sckServer = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
     assert(sckServer != INVALID_SOCKET);
+    printf("服务器fd=%d\n", sckServer);
 
     auto dispatcher = new SocketDispatcher();
 
@@ -561,32 +572,25 @@ int main()
     assert(s_fnGetAcceptExSockAddrs != nullptr);
 
 
-    for(auto i = 0; i < 1; i++) {
+    for(auto i = 0; i < 10; i++) {
         _beginthreadex(nullptr, 0, worker_thread, (void*)hIocp, 0, nullptr);
     }
 
-    static std::string res =
+    static char* res =
         "HTTP/1.1 200 OK\r\n"
         "Server: iocp test\r\n"
         "Content-Type: text/html\r\n"
+        "Content-Length: 3\r\n"
+        "Connection: close\r\n"
         "\r\n"
-        "<!doctype html>\n"
-        "<html>\n"
-        "<head>\n"
-        "<meta charset=\"utf-8\" />\n"
-        "</head>\n"
-        "<body>\n"
-        "<h1>Head</h1>\n"
-        "<p>Paragraph</p>\n"
-        "</body>\n"
-        "</html>"
+        "123"
         ;
 
     ctx->OnAccepted([](ClientSocketContext* client) {
-        std::printf("客户端连接：%s\n", to_string(client->remote).c_str());
+        std::printf("客户端连接：%s,fd=%d\n", to_string(client->remote).c_str(), client->fd);
         client->OnRead([](ClientSocketContext* client, unsigned char* data, size_t size) {
             std::printf("接收到数据：%.*s\n", size, data);
-            client->Write(res.c_str(), nullptr);
+            client->Write(res, nullptr);
         });
         client->OnWritten([](ClientSocketContext* client, size_t size) {
             std::printf("发送了数据：%d 字节\n", size);
