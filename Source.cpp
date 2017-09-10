@@ -13,8 +13,10 @@
 #include <cstring>
 #include <functional>
 
+#ifdef DEBUG
 #define TAOLOG_ENABLED
 #define TAOLOG_METHOD_COPYDATA
+#endif
 
 #include "taolog.h"
 
@@ -150,9 +152,6 @@ public:
         _e = ::WSAGetLastError();
     }
 
-    // 操作同步成功（立即完成）
-    bool Sync()     { return _b; }
-
     bool Succ()     { return _b; }
 
     // 操作失败（原因不是异步）
@@ -284,12 +283,14 @@ struct ReadIOContext : BaseIOContext
         return R;
     }
 
+    /*
     bool Closed(SOCKET fd)
     {
         DWORD dwBytes;
         WSARet ret = GetResult(fd, &dwBytes);
         return ret.Succ() && dwBytes == 0;
     }
+    */
 
     WSABUF wsabuf;
     unsigned char buf[BUF_SIZE];
@@ -330,9 +331,18 @@ struct BaseSocketContext
 
 struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
 {
+    struct Flags
+    {
+        enum Value
+        {
+            Closed  = 1 << 0,
+        };
+    };
+
     ClientSocketContext(SocketDispatcher* disp, SOCKET fd)
         : fd(fd)
         , _disp(disp)
+        , flags(0)
     {
 
     }
@@ -342,12 +352,17 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
     SOCKADDR_IN remote;
     typedef std::function<void(ClientSocketContext*, unsigned char*, size_t)> OnReadT;
     typedef std::function<void(ClientSocketContext*, size_t)> OnWrittenT;
+    typedef std::function<void(ClientSocketContext*)> OnClosedT;
     OnReadT _onRead;
     OnWrittenT _onWritten;
+    OnClosedT _onClosed;
     SocketDispatcher* _disp;
+    DWORD flags;
+
 
     void Close()
     {
+        flags |= Flags::Closed;
         WSAIntRet ret = closesocket(fd);
         LogLog("关闭client,fd=%d,ret=%d", fd, ret.Code());
         assert(ret.Succ());
@@ -363,74 +378,85 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         _onWritten = onWritten;
     }
 
-    void Write(const char* data, size_t size, void* tag)
+    void OnClosed(OnClosedT onClose)
+    {
+        _onClosed = onClose;
+    }
+
+    WSARet Write(const char* data, size_t size, void* tag)
     {
         return Write((const unsigned char*)data, size, tag);
     }
 
-    void Write(const char* data, void* tag)
+    WSARet Write(const char* data, void* tag)
     {
         return Write(data, std::strlen(data), tag);
     }
 
-    void Write(const unsigned char* data, size_t size, void* tag)
+    WSARet Write(const unsigned char* data, size_t size, void* tag)
     {
         auto writeio = new WriteIOContext();
         auto ret = writeio->Write(fd, data, size);
-        if(ret.Sync()) {
+        if(ret.Succ()) {
             LogLog("写立即成功，fd=%d,size=%d", fd, size);
         }
         else if(ret.Fail()) {
             LogFat("写错误：fd=%d,code=%d", fd, ret.Code());
-            assert(0);
         }
         else if(ret.Async()) {
             LogLog("写异步，fd=%d", fd);
         }
+        return ret;
     }
 
-    void _Read()
+    WSARet _Read()
     {
         auto readio = new ReadIOContext();
-        WSARet ret = readio->Read(fd);
-        if(ret.Sync()) {
+        auto ret = readio->Read(fd);
+        if(ret.Succ()) {
             LogLog("_Read 立即成功, fd:%d", fd);
-        }
-        else if(ret.Fail() && ret.Code() == WSAENOTSOCK) {
-            LogFat("读非套接字");
         }
         else if(ret.Fail()) {
             LogFat("读错误：fd:%d,code=%d", fd, ret.Code());
-            assert(0);
         }
         else if(ret.Async()) {
             LogLog("读异步 fd:%d", fd);
         }
+        return ret;
     }
 
     void _OnRead(ReadIOContext* io, bool inThread)
     {
+        /*
         if(inThread) {
             return _disp->Dispatch(this, static_cast<BaseIOContext*>(io));
         }
+        */
 
         DWORD dwBytes = 0;
         WSARet ret = io->GetResult(fd, &dwBytes);
-        if(ret.Sync() && dwBytes != 0) {
+        if(ret.Succ() && dwBytes > 0) {
             LogLog("_OnRead 成功，fd:%d,dwBytes:%d", fd, dwBytes);
             _onRead(this, io->buf, dwBytes);
+            _Read();
         }
-        else if(ret.Succ() && dwBytes == 0 || ret.Fail() && ret.Code() == WSAENOTSOCK) {
-            LogWrn("连接已被对方关闭：fd:", fd);
-        }
-        else if(ret.Fail()) {
-            LogFat("读失败：fd=%d,code:%d", fd, ret.Code());
-            assert(0);
+        else {
+            if(flags & Flags::Closed) {
+                LogWrn("已主动关闭连接：fd:%d", fd);
+            }
+            else if(ret.Succ() && dwBytes == 0) {
+                LogWrn("已被动关闭连接：fd:%d", fd);
+                _onClosed(this);
+            }
+            else if(ret.Fail()) {
+                LogFat("读失败：fd=%d,code:%d", fd, ret.Code());
+            }
         }
     }
 
-    void _OnWritten(WriteIOContext* io, bool inThread)
+    WSARet _OnWritten(WriteIOContext* io, bool inThread)
     {
+        /*
         if(inThread) {
             DWORD dwBytes = 0;
             WSARet ret = io->GetResult(fd, &dwBytes);
@@ -440,6 +466,7 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
             
             return _disp->Dispatch(this, static_cast<BaseIOContext*>(io));
         }
+        */
 
         DWORD dwBytes = 0;
         WSARet ret = io->GetResult(fd, &dwBytes);
@@ -449,6 +476,8 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         else {
             LogFat("写失败");
         }
+
+        return ret;
     }
 
     virtual void Invoke(void * data) override
@@ -499,7 +528,7 @@ struct ServerSocketContext : public BaseSocketContext
         for(;;) {
             auto acceptio = new AcceptIOContext();
             auto ret = acceptio->Accept(fd);
-            if(ret.Sync()) {
+            if(ret.Succ()) {
                 auto client = _OnAccepted(acceptio);
                 clients.push_back(client);
                 LogLog("_Accept 立即完成：client fd:%d, remote:%s", client->fd, to_string(client->remote).c_str());
@@ -528,6 +557,7 @@ static unsigned int __stdcall worker_thread(void* tag)
     ReadIOContext* readio;
     WriteIOContext* writeio;
     AcceptIOContext* acceptio;
+    WSARet ret = false;
     DWORD dwBytesTransfered;
 
     while(true) {
@@ -555,9 +585,6 @@ static unsigned int __stdcall worker_thread(void* tag)
             readio = static_cast<ReadIOContext*>(pIoContext);
             LogLog("接收到读完成事件：fd:%d", pClientSocket->fd);
             pClientSocket->_OnRead(readio, true);
-            if(!readio->Closed(pClientSocket->fd)) {
-                pClientSocket->_Read();
-            }
             delete readio;
         }
         else if(pIoContext->optype == OpType::Write) {
@@ -582,8 +609,10 @@ static unsigned int __stdcall worker_thread(void* tag)
 
 int main()
 {
-#ifdef TAOLOG_ENABLED
+#ifdef DEBUG
+#ifdef TAOLOG_ENABLED 
     g_taoLogger.Init();
+#endif // DEBUG
 #endif
 
     WSADATA wsaData;
@@ -659,17 +688,22 @@ int main()
         "123"
         ;
 
-    int i = 0;
+    volatile long i = 0;
 
     ctx->OnAccepted([&i](ClientSocketContext* client) {
-        LogLog("X客户端连接(i=%d)：%s,fd=%d\n", ++i, to_string(client->remote).c_str(), client->fd);
+        LogLog("X客户端连接(i=%d)：%s,fd=%d\n", i, to_string(client->remote).c_str(), client->fd);
         client->OnRead([](ClientSocketContext* client, unsigned char* data, size_t size) {
             LogLog("接收到数据(fd=%d)：%.*s\n", client->fd, size, data);
             client->Write(res, nullptr);
         });
         client->OnWritten([](ClientSocketContext* client, size_t size) {
             LogLog("发送了数据(fd=%d)：%d 字节\n", client->fd, size);
+        });
+        client->OnClosed([&i](ClientSocketContext* client) {
             client->Close();
+            InterlockedIncrement(&i);
+            LogLog("已处理连接数：%d", i);
+            std::printf("已处理连接数：%d\n", i);
         });
     });
 
