@@ -609,7 +609,7 @@ static unsigned int __stdcall worker_thread(void* tag)
 
 int main()
 {
-#ifdef DEBUG
+#ifdef _DEBUG
 #ifdef TAOLOG_ENABLED 
     g_taoLogger.Init();
 #endif // DEBUG
