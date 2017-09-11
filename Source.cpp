@@ -13,7 +13,7 @@
 #include <cstring>
 #include <functional>
 
-#ifdef DEBUG
+#ifdef _DEBUG
 #define TAOLOG_ENABLED
 #define TAOLOG_METHOD_COPYDATA
 #endif
