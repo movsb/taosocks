@@ -54,15 +54,25 @@ struct OpType
     enum Value
     {
         Init,
+        Close,
         Accept,
         Read,
         Write,
     };
 };
 
+struct BaseDispatchData
+{
+    BaseDispatchData(OpType::Value type)
+        : optype(type)
+    { }
+
+    OpType::Value optype;
+};
+
 struct ISocketDispatcher
 {
-    virtual void Invoke(void* data) = 0;
+    virtual void Invoke(BaseDispatchData* data) = 0;
 };
 
 struct SocketDispatcher
@@ -75,7 +85,7 @@ struct SocketDispatcher
         Init();
     }
 
-    void Dispatch(ISocketDispatcher* disp, void* data)
+    void Dispatch(ISocketDispatcher* disp, BaseDispatchData* data)
     {
         ::SendMessage(hwnd, msg, WPARAM(disp), LPARAM(data));
     }
@@ -113,7 +123,7 @@ struct SocketDispatcher
     {
         if(uMsg == msg) {
             auto pDisp = reinterpret_cast<ISocketDispatcher*>(wParam);
-            auto pData = reinterpret_cast<void*>(lParam);
+            auto pData = reinterpret_cast<BaseDispatchData*>(lParam);
             pDisp->Invoke(pData);
             return 0;
         }
@@ -283,15 +293,6 @@ struct ReadIOContext : BaseIOContext
         return R;
     }
 
-    /*
-    bool Closed(SOCKET fd)
-    {
-        DWORD dwBytes;
-        WSARet ret = GetResult(fd, &dwBytes);
-        return ret.Succ() && dwBytes == 0;
-    }
-    */
-
     WSABUF wsabuf;
     unsigned char buf[BUF_SIZE];
 };
@@ -337,6 +338,32 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         {
             Closed  = 1 << 0,
         };
+    };
+
+    struct ReadDispatchData : BaseDispatchData
+    {
+        ReadDispatchData()
+            : BaseDispatchData(OpType::Read)
+        { }
+
+        unsigned char* data;
+        size_t size;
+    };
+
+    struct WriteDispatchData : BaseDispatchData
+    {
+        WriteDispatchData()
+            : BaseDispatchData(OpType::Write)
+        { }
+
+        size_t size;
+    };
+
+    struct CloseDispatchData : BaseDispatchData
+    {
+        CloseDispatchData()
+            : BaseDispatchData(OpType::Close)
+        { }
     };
 
     ClientSocketContext(SocketDispatcher* disp, SOCKET fd)
@@ -425,19 +452,16 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         return ret;
     }
 
-    void _OnRead(ReadIOContext* io, bool inThread)
+    void _OnRead(ReadIOContext* io)
     {
-        /*
-        if(inThread) {
-            return _disp->Dispatch(this, static_cast<BaseIOContext*>(io));
-        }
-        */
-
         DWORD dwBytes = 0;
         WSARet ret = io->GetResult(fd, &dwBytes);
         if(ret.Succ() && dwBytes > 0) {
             LogLog("_OnRead 成功，fd:%d,dwBytes:%d", fd, dwBytes);
-            _onRead(this, io->buf, dwBytes);
+            ReadDispatchData data;
+            data.data = io->buf;
+            data.size = dwBytes;
+            _disp->Dispatch(this, &data);
             _Read();
         }
         else {
@@ -446,7 +470,8 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
             }
             else if(ret.Succ() && dwBytes == 0) {
                 LogWrn("已被动关闭连接：fd:%d", fd);
-                _onClosed(this);
+                CloseDispatchData data;
+                _disp->Dispatch(this, &data);
             }
             else if(ret.Fail()) {
                 LogFat("读失败：fd=%d,code:%d", fd, ret.Code());
@@ -454,24 +479,14 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         }
     }
 
-    WSARet _OnWritten(WriteIOContext* io, bool inThread)
+    WSARet _OnWritten(WriteIOContext* io)
     {
-        /*
-        if(inThread) {
-            DWORD dwBytes = 0;
-            WSARet ret = io->GetResult(fd, &dwBytes);
-            if(ret.Fail()) {
-                assert(0);
-            }
-            
-            return _disp->Dispatch(this, static_cast<BaseIOContext*>(io));
-        }
-        */
-
         DWORD dwBytes = 0;
         WSARet ret = io->GetResult(fd, &dwBytes);
         if(ret.Succ() && dwBytes > 0) {
-            _onWritten(this, dwBytes);
+            WriteDispatchData data;
+            data.size = dwBytes;
+            _disp->Dispatch(this, &data);
         }
         else {
             LogFat("写失败");
@@ -480,27 +495,48 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         return ret;
     }
 
-    virtual void Invoke(void * data) override
+    virtual void Invoke(BaseDispatchData* data) override
     {
-        auto pBaseContext = static_cast<BaseIOContext*>(data);
-        if(pBaseContext->optype == OpType::Read) {
-            auto io = static_cast<ReadIOContext*>(pBaseContext);
-            _OnRead(io, false);
+        switch(data->optype)
+        {
+        case OpType::Read:
+        {
+            auto d = static_cast<ReadDispatchData*>(data);
+            _onRead(this, d->data, d->size);
+            break;
         }
-        else if(pBaseContext->optype == OpType::Write) {
-            auto io = static_cast<WriteIOContext*>(pBaseContext);
-            _OnWritten(io, false);
+        case OpType::Write:
+        {
+            auto d = static_cast<WriteDispatchData*>(data);
+            _onWritten(this, d->size);
+            break;
+        }
+        case OpType::Close:
+        {
+            auto d = static_cast<CloseDispatchData*>(data);
+            _onClosed(this);
+            break;
+        }
         }
     }
 };
 
-struct ServerSocketContext : public BaseSocketContext
+struct ServerSocketContext : public BaseSocketContext, public ISocketDispatcher
 {
     HANDLE hiocp;
     SOCKET fd;
     HWND hwnd;
     std::function<void(ClientSocketContext*)> _onAccepted;
     SocketDispatcher* _disp;
+
+    struct AcceptDispatchData : BaseDispatchData
+    {
+        AcceptDispatchData()
+            : BaseDispatchData(OpType::Accept)
+        { }
+
+        ClientSocketContext* client;
+    };
 
     ServerSocketContext(SocketDispatcher* disp)
     {
@@ -517,7 +553,9 @@ struct ServerSocketContext : public BaseSocketContext
         auto client = new ClientSocketContext(_disp, io->fd);
         io->GetAddresses(&client->local, &client->remote);
         ::CreateIoCompletionPort((HANDLE)client->fd, hiocp, (ULONG_PTR)static_cast<BaseSocketContext*>(client), 0);
-        _onAccepted(client);
+        AcceptDispatchData data;
+        data.client = client;
+        _disp->Dispatch(this, &data);
         return client;
     }
 
@@ -545,6 +583,19 @@ struct ServerSocketContext : public BaseSocketContext
 
         return std::move(clients);
     }
+
+    virtual void Invoke(BaseDispatchData* data) override
+    {
+        switch(data->optype)
+        {
+        case OpType::Accept:
+        {
+            auto d = static_cast<AcceptDispatchData*>(data);
+            _onAccepted(d->client);
+            break;
+        }
+        }
+    }
 };
 
 static unsigned int __stdcall worker_thread(void* tag)
@@ -562,10 +613,6 @@ static unsigned int __stdcall worker_thread(void* tag)
 
     while(true) {
         BOOL bRet = GetQueuedCompletionStatus(hIocp, &dwBytesTransfered, (PULONG_PTR)&pBaseSocket, (LPOVERLAPPED*)&pIoContext, INFINITE);
-        LogLog("收到完成端口事件：bRet=%d,dwBytes=%d", bRet, dwBytesTransfered);
-        if(bRet == FALSE && dwBytesTransfered == 0 && pIoContext != nullptr && pIoContext->optype == OpType::Read) {
-            continue;
-        }
 
         if(pIoContext->optype == OpType::Accept) {
             pServerContext = static_cast<ServerSocketContext*>(pBaseSocket);
@@ -584,14 +631,14 @@ static unsigned int __stdcall worker_thread(void* tag)
             pClientSocket = static_cast<ClientSocketContext*>(pBaseSocket);
             readio = static_cast<ReadIOContext*>(pIoContext);
             LogLog("接收到读完成事件：fd:%d", pClientSocket->fd);
-            pClientSocket->_OnRead(readio, true);
+            pClientSocket->_OnRead(readio);
             delete readio;
         }
         else if(pIoContext->optype == OpType::Write) {
             pClientSocket = static_cast<ClientSocketContext*>(pBaseSocket);
             writeio = static_cast<WriteIOContext*>(pIoContext);
             LogLog("接收到写完成事件：fd:%d", pClientSocket->fd);
-            pClientSocket->_OnWritten(writeio, true);
+            pClientSocket->_OnWritten(writeio);
             delete writeio;
         }
         else if(pIoContext->optype == OpType::Init) {
@@ -628,10 +675,10 @@ int main()
 
     auto dispatcher = new SocketDispatcher();
 
-    auto ctx = new ServerSocketContext(dispatcher);
-    ctx->hiocp = hIocp;
-    ctx->fd = sckServer;
-    hIocp = ::CreateIoCompletionPort((HANDLE)sckServer, hIocp, (ULONG_PTR)ctx, 0);
+    auto pServer = new ServerSocketContext(dispatcher);
+    pServer->hiocp = hIocp;
+    pServer->fd = sckServer;
+    hIocp = ::CreateIoCompletionPort((HANDLE)sckServer, hIocp, (ULONG_PTR)static_cast<BaseSocketContext*>(pServer), 0);
     assert(hIocp != nullptr);
 
     SOCKADDR_IN addrServer = {0};
@@ -690,7 +737,7 @@ int main()
 
     volatile long i = 0;
 
-    ctx->OnAccepted([&i](ClientSocketContext* client) {
+    pServer->OnAccepted([&i](ClientSocketContext* client) {
         LogLog("X客户端连接(i=%d)：%s,fd=%d\n", i, to_string(client->remote).c_str(), client->fd);
         client->OnRead([](ClientSocketContext* client, unsigned char* data, size_t size) {
             LogLog("接收到数据(fd=%d)：%.*s\n", client->fd, size, data);
@@ -708,7 +755,7 @@ int main()
     });
 
     auto io = new InitIOContext();
-    PostQueuedCompletionStatus(hIocp, 0, (ULONG_PTR)ctx, &io->overlapped);
+    PostQueuedCompletionStatus(hIocp, 0, (ULONG_PTR)static_cast<BaseSocketContext*>(pServer), &io->overlapped);
 
     return dispatcher->Run();
 }
