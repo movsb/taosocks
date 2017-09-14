@@ -19,6 +19,8 @@
 #endif
 
 #include "taolog.h"
+#include <algorithm>
+#include <ws2tcpip.h>
 
 #ifdef TAOLOG_ENABLED
 // {DA72210D-0C17-4223-AA34-7EB7EDADB64F}
@@ -654,6 +656,270 @@ static unsigned int __stdcall worker_thread(void* tag)
     }
 }
 
+namespace SocksProxy
+{
+
+
+class resolver{
+public:
+	resolver()
+		: _size(0)
+		, _paddr(nullptr)
+	{}
+
+	~resolver(){
+		free();
+	}
+
+    bool resolve(const std::string& host, const std::string& service)
+    {
+        struct addrinfo hints;
+		struct addrinfo* pres = nullptr;
+		int res;
+
+		free();
+
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_INET;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_protocol = IPPROTO_TCP;
+
+		res = ::getaddrinfo(host.c_str(), service.c_str(), &hints, &pres);
+		if (res != 0){
+			_paddr = nullptr;
+			_size = 0;
+            return false;
+		}
+
+		_paddr = pres;
+		while (pres){
+			_size++;
+			pres = pres->ai_next;
+		}
+
+		return true;
+    }
+
+	void free() {
+		_size = 0;
+		if (_paddr){
+			::freeaddrinfo(_paddr);
+			_paddr = nullptr;
+		}
+	}
+
+	size_t size() const {
+		return _size;
+	}
+
+    unsigned int operator[](int index) {
+		struct addrinfo* p = _paddr;
+		while (index > 1){
+			p = p->ai_next;
+			index--;
+		}
+
+        auto inaddr = (sockaddr_in*)p->ai_addr;
+        auto ip = (std::string)::inet_ntoa(inaddr->sin_addr);
+        auto port = ::ntohs(inaddr->sin_port);
+
+        return inaddr->sin_addr.S_un.S_addr;
+	}
+
+protected:
+	int _size;
+	struct addrinfo* _paddr;
+};
+
+struct SocksVersion
+{
+    enum Value {
+        v4 = 0x04,
+        v5 = 0x05,
+    };
+};
+
+struct SocksCommand
+{
+    enum Value {
+        Stream      = 0x01,
+    };
+};
+
+struct ConnectionStatus
+{
+    enum Value {
+        Success     = 0x5A,
+        Fail        = 0x5B,
+    };
+};
+
+class SocksServer
+{
+private:
+    struct Phrase
+    {
+        enum Value {
+            Init,
+            Command,
+            Port,
+            Addr,
+            Domain,
+            User,
+        };
+    };
+
+public:
+    SocksServer(ClientSocketContext* client)
+        : _client(client)
+        , _phrase(Phrase::Init)
+    {
+        _client->OnRead([this](ClientSocketContext*, unsigned char* data, size_t size) {
+            feed(data, size);
+        });
+
+        _client->OnWritten([this](ClientSocketContext*, size_t size) {
+            _send.erase(_send.cbegin(), _send.cbegin() + size);
+            if(!_send.empty()) {
+                _client->Write(_send.data(), _send.size(), nullptr);
+            }
+        });
+
+        _client->OnClosed([this](ClientSocketContext*) {
+            delete this;
+        });
+    }
+
+public:
+    void feed(const unsigned char* data, size_t size)
+    {
+        _recv.insert(_recv.cend(), data, data + size);
+
+        auto& D = _recv;
+
+        while(!D.empty()) {
+            switch(_phrase) {
+            case Phrase::Init:
+            {
+                auto ver = (SocksVersion::Value)D[0];
+                D.erase(D.begin());
+
+                if(ver != SocksVersion::v4) {
+                    assert(0);
+                }
+
+                _phrase = Phrase::Command;
+                break;
+            }
+            case Phrase::Command:
+            {
+                auto cmd = (SocksCommand::Value)D[0];
+                D.erase(D.begin());
+
+                if(cmd != SocksCommand::Stream) {
+                    assert(0);
+                }
+
+                _phrase = Phrase::Port;
+                break;
+            }
+            case Phrase::Port:
+            {
+                if(D.size() < 2) {
+                    return;
+                }
+
+                unsigned short port_net = D[0] + (D[1] << 8);
+                D.erase(D.begin(), D.begin() + 2);
+                _port = ::ntohs(port_net);
+
+                _phrase = Phrase::Addr;
+                break;
+            }
+            case Phrase::Addr:
+            {
+                if(D.size() < 4) {
+                    return;
+                }
+
+                _addr.S_un.S_un_b.s_b1 = D[0];
+                _addr.S_un.S_un_b.s_b2 = D[1];
+                _addr.S_un.S_un_b.s_b3 = D[2];
+                _addr.S_un.S_un_b.s_b4 = D[3];
+                D.erase(D.begin(), D.begin() + 4);
+
+                _phrase = Phrase::User;
+                break;
+            }
+            case Phrase::User:
+            {
+                auto term = std::find_if(D.cbegin(), D.cend(), [](const unsigned char& c) {
+                    return c == '\0';
+                });
+
+                if(term == D.cend()) {
+                    return;
+                }
+
+                D.erase(D.begin(), term + 1);
+                _phrase = Phrase::Domain;
+                break;
+            }
+            case Phrase::Domain:
+            {
+                auto term = std::find_if(D.cbegin(), D.cend(), [](const unsigned char& c) {
+                    return c == '\0';
+                });
+
+                if(term == D.cend()) {
+                    return;
+                }
+
+                _domain = (char*)&D[0];
+
+                D.erase(D.begin(), term + 1);
+
+                _client->OnRead([this](ClientSocketContext*, unsigned char* data, size_t size) {
+                    _send.insert(_send.cend(), data, data + size);
+                });
+
+                _send.push_back(0x00);
+                _send.push_back(ConnectionStatus::Fail);
+                _send.push_back(_port >> 8);
+                _send.push_back(_port & 0xff);
+
+                resolver rsv;
+                if(!rsv.resolve(_domain, std::to_string(_port))) {
+                    assert(0);
+                }
+
+                auto addr = ::htonl(rsv[0]);
+                char* a = (char*)&addr;
+                _send.push_back(a[0]);
+                _send.push_back(a[1]);
+                _send.push_back(a[2]);
+                _send.push_back(a[3]);
+
+                _client->Write(_send.data(), _send.size(), nullptr);
+
+                break;
+            }
+            }
+        }
+    }
+
+protected:
+    Phrase::Value _phrase;
+    ClientSocketContext* _client;
+    std::vector<unsigned char> _send;
+    std::vector<unsigned char> _recv;
+    unsigned short _port;
+    in_addr _addr;
+    std::string _domain;
+};
+
+}
+
 int main()
 {
 #ifdef _DEBUG
@@ -720,38 +986,13 @@ int main()
     assert(s_fnGetAcceptExSockAddrs != nullptr);
 
 
-    for(auto i = 0; i < 10; i++) {
+    for(auto i = 0; i < 1; i++) {
         _beginthreadex(nullptr, 0, worker_thread, (void*)hIocp, 0, nullptr);
         LogLog("开启工作线程：%d", i + 1);
     }
 
-    static const char* res =
-        "HTTP/1.1 200 OK\r\n"
-        "Server: iocp-demo\r\n"
-        "Content-Type: text/html\r\n"
-        "Content-Length: 3\r\n"
-        "Connection: close\r\n"
-        "\r\n"
-        "123"
-        ;
-
-    volatile long i = 0;
-
-    pServer->OnAccepted([&i](ClientSocketContext* client) {
-        LogLog("X客户端连接(i=%d)：%s,fd=%d\n", i, to_string(client->remote).c_str(), client->fd);
-        client->OnRead([](ClientSocketContext* client, unsigned char* data, size_t size) {
-            LogLog("接收到数据(fd=%d)：%.*s\n", client->fd, size, data);
-            client->Write(res, nullptr);
-        });
-        client->OnWritten([](ClientSocketContext* client, size_t size) {
-            LogLog("发送了数据(fd=%d)：%d 字节\n", client->fd, size);
-        });
-        client->OnClosed([&i](ClientSocketContext* client) {
-            client->Close();
-            InterlockedIncrement(&i);
-            LogLog("已处理连接数：%d", i);
-            std::printf("已处理连接数：%d\n", i);
-        });
+    pServer->OnAccepted([](ClientSocketContext* client) {
+        new SocksProxy::SocksServer(client);
     });
 
     auto io = new InitIOContext();
