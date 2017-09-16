@@ -58,12 +58,14 @@ struct OpType
 {
     enum Value
     {
+        __Beg,
         Init,
         Close,
         Accept,
         Read,
         Write,
         Connect,
+        __End,
     };
 };
 
@@ -71,7 +73,9 @@ struct BaseDispatchData
 {
     BaseDispatchData(OpType::Value type)
         : optype(type)
-    { }
+    {
+        assert(OpType::__Beg < type && type < OpType::__End);
+    }
 
     OpType::Value optype;
 };
@@ -554,6 +558,7 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         DWORD dwBytes = 0;
         WSARet ret = io->GetResult(fd, &dwBytes);
         if(ret.Succ() && dwBytes > 0) {
+            assert(dwBytes == io->wsabuf.len);
             WriteDispatchData data;
             data.size = dwBytes;
             _disp->Dispatch(this, &data);
@@ -867,33 +872,13 @@ public:
     SocksServer(ClientSocketContext* client)
         : _client(client)
         , _phrase(Phrase::Init)
-        , _i(0)
     {
         _client->OnRead([&](ClientSocketContext*, unsigned char* data, size_t size) {
             feed(data, size);
         });
 
-        _i = 0;
-
         _client->OnWritten([&](ClientSocketContext*, size_t size) {
-            _i += size;
-            if(_i == 8) {
-                _client->OnWritten([&](ClientSocketContext*, size_t size) {
-                    std::cout << "发送给浏览器 " << _client->fd << ": "  << size << std::endl;
-                    if(size > _send.size()) {
-                        // assert("fail" && 0);
-                        size = _send.size();
-                    }
-                    _send.erase(_send.cbegin(), _send.cbegin() + size);
-                    if(!_send.empty()) {
-                        _client->Write(_send.data(), _send.size(), nullptr);
-                    }
-                });
-            }
-            _send.erase(_send.cbegin(), _send.cbegin() + size);
-            if(!_send.empty()) {
-                _client->Write(_send.data(), _send.size(), nullptr);
-            }
+            std::cout << "发给浏览器：" << _client->fd << ":" << size << std::endl;
         });
 
         _client->OnClosed([&](ClientSocketContext*) {
@@ -1008,34 +993,31 @@ public:
 
                     _client->OnRead([&,c](ClientSocketContext*, unsigned char* data, size_t size) {
                         std::cout << "收到浏览器 " << _client->fd << ":" <<  size << std::endl;
-                       _recv.insert(_recv.cend(), data, data + size);
-                       c->Write(_recv.data(), _recv.size(), nullptr);
+                       c->Write(data, size, nullptr);
                     });
 
-                    _send.push_back(0x00);
-                    _send.push_back(ConnectionStatus::Success);
-                    _send.push_back(_port >> 8);
-                    _send.push_back(_port & 0xff);
+                    std::vector<unsigned char> data;
+                    data.push_back(0x00);
+                    data.push_back(ConnectionStatus::Success);
+                    data.push_back(_port >> 8);
+                    data.push_back(_port & 0xff);
 
-                    //auto addr = ::htonl(remote_addr);
                     auto addr = remote_addr;
                     char* a = (char*)&addr;
-                    _send.push_back(a[0]);
-                    _send.push_back(a[1]);
-                    _send.push_back(a[2]);
-                    _send.push_back(a[3]);
+                    data.push_back(a[0]);
+                    data.push_back(a[1]);
+                    data.push_back(a[2]);
+                    data.push_back(a[3]);
 
-                    _client->Write(_send.data(), _send.size(), nullptr);
+                    _client->Write(data.data(), data.size(), nullptr);
 
                     c->OnRead([this](ClientSocketContext*, unsigned char* data, size_t size) {
                         std::cout << "收到服务器 "<< _client->fd << ":"  << size << std::endl;
-                        _send.insert(_send.cend(), data, data + size);
-                        _client->Write(_send.data(), _send.size(), nullptr);
+                        _client->Write(data, size, nullptr);
                     });
 
                     c->OnWritten([this](ClientSocketContext*, size_t size) {
-                        std::cout << "发送给服务器 " << _client->fd << ":" << size << std::endl;
-                        _recv.erase(_recv.cbegin(), _recv.cbegin() + size);
+                        std::cout << "发给服务器 " << _client->fd << ":" << size << std::endl;
                     });
 
                     c->OnClosed([this](ClientSocketContext*) {
@@ -1062,10 +1044,8 @@ public:
     }
 
 protected:
-    int _i;
     Phrase::Value _phrase;
     ClientSocketContext* _client;
-    std::vector<unsigned char> _send;
     std::vector<unsigned char> _recv;
     unsigned short _port;
     in_addr _addr;
