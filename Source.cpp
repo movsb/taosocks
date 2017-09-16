@@ -31,8 +31,11 @@ TaoLogger g_taoLogger(providerGuid);
 
 #pragma comment(lib, "ws2_32")
 
+static HANDLE g_hiocp;
+
 static LPFN_ACCEPTEX s_fnAcceptEx;
 static LPFN_GETACCEPTEXSOCKADDRS s_fnGetAcceptExSockAddrs;
+static LPFN_CONNECTEX s_fnConnectEx;
 
 static const size_t BUF_SIZE = 64 * 1024;
 static const TCHAR* const s_className = _T("{2FF09706-39AD-4FA0-B137-C4416E39C973}");
@@ -60,6 +63,7 @@ struct OpType
         Accept,
         Read,
         Write,
+        Connect,
     };
 };
 
@@ -207,10 +211,13 @@ struct BaseIOContext
         std::memset(&overlapped, 0, sizeof(overlapped));
     }
 
-    WSARet GetResult(SOCKET fd, DWORD* pdwBytes, DWORD* pdwFlags = nullptr)
+    WSARet GetResult(SOCKET fd, DWORD* pdwBytes = nullptr, DWORD* pdwFlags = nullptr)
     {
         DWORD dwFlags = 0;
-        WSABoolRet ret = ::WSAGetOverlappedResult(fd, &overlapped, pdwBytes, FALSE, &dwFlags);
+        DWORD dwBytes = 0;
+        WSABoolRet ret = ::WSAGetOverlappedResult(fd, &overlapped, &dwBytes, FALSE, &dwFlags);
+        if(pdwBytes != nullptr)
+            *pdwBytes = dwBytes;
         if(pdwFlags != nullptr)
             *pdwFlags = dwFlags;
         return ret;
@@ -303,13 +310,24 @@ struct WriteIOContext : BaseIOContext
 {
     WriteIOContext()
         : BaseIOContext(OpType::Write)
-    { }
+    {
+        wsabuf.buf = nullptr;
+    }
+    ~WriteIOContext()
+    {
+        if(wsabuf.buf != nullptr) {
+            delete[] wsabuf.buf;
+            wsabuf.buf = nullptr;
+        }
+    }
 
     WSARet Write(SOCKET fd, const unsigned char* data, size_t size)
     {
         DWORD dwFlags = 0;
 
-        wsabuf.buf = (char*)data;
+        wsabuf.buf = new char[size];
+        ::memcpy(wsabuf.buf, data, size);
+        //wsabuf.buf = (char*)data;
         wsabuf.len = size;
 
         WSAIntRet R = ::WSASend(
@@ -327,6 +345,26 @@ struct WriteIOContext : BaseIOContext
     WSABUF wsabuf;
 };
 
+struct ConnectIOContext : BaseIOContext
+{
+    ConnectIOContext()
+        : BaseIOContext(OpType::Connect)
+    { }
+
+    WSARet Connect(SOCKET fd, const sockaddr_in& addr)
+    {
+        WSABoolRet R = s_fnConnectEx(
+            fd, 
+            (sockaddr*)&addr, sizeof(addr), 
+            nullptr, 0,
+            nullptr,
+            &overlapped
+        );
+
+        return R;
+    }
+};
+
 struct BaseSocketContext
 {
 
@@ -340,6 +378,13 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         {
             Closed  = 1 << 0,
         };
+    };
+
+    struct ConnectDispatchData : BaseDispatchData
+    {
+        ConnectDispatchData()
+            : BaseDispatchData(OpType::Connect)
+        { }
     };
 
     struct ReadDispatchData : BaseDispatchData
@@ -382,9 +427,11 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
     typedef std::function<void(ClientSocketContext*, unsigned char*, size_t)> OnReadT;
     typedef std::function<void(ClientSocketContext*, size_t)> OnWrittenT;
     typedef std::function<void(ClientSocketContext*)> OnClosedT;
+    typedef std::function<void(ClientSocketContext*)> OnConnectedT;
     OnReadT _onRead;
     OnWrittenT _onWritten;
     OnClosedT _onClosed;
+    OnConnectedT _onConnected;
     SocketDispatcher* _disp;
     DWORD flags;
 
@@ -410,6 +457,27 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
     void OnClosed(OnClosedT onClose)
     {
         _onClosed = onClose;
+    }
+
+    void OnConnected(OnConnectedT onConnected)
+    {
+        _onConnected = onConnected;
+    }
+
+    WSARet Connect(const sockaddr_in& addr)
+    {
+        auto connio = new ConnectIOContext();
+        auto ret = connio->Connect(fd, addr);
+        if(ret.Succ()) {
+            LogLog("连接立即成功");
+        }
+        else if(ret.Fail()) {
+            LogFat("连接调用失败：%d", ret.Code());
+        }
+        else if(ret.Async()) {
+            LogLog("连接异步");
+        }
+        return ret;
     }
 
     WSARet Write(const char* data, size_t size, void* tag)
@@ -497,6 +565,20 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         return ret;
     }
 
+    WSARet _OnConnected(ConnectIOContext* io)
+    {
+        WSARet ret = io->GetResult(fd);
+        if(ret.Succ()) {
+            ConnectDispatchData data;
+            _disp->Dispatch(this, &data);
+        }
+        else {
+            LogFat("连接失败");
+        }
+
+        return ret;
+    }
+
     virtual void Invoke(BaseDispatchData* data) override
     {
         switch(data->optype)
@@ -517,6 +599,12 @@ struct ClientSocketContext : public BaseSocketContext, public ISocketDispatcher
         {
             auto d = static_cast<CloseDispatchData*>(data);
             _onClosed(this);
+            break;
+        }
+        case OpType::Connect:
+        {
+            auto d = static_cast<ConnectDispatchData*>(data);
+            _onConnected(this);
             break;
         }
         }
@@ -610,6 +698,7 @@ static unsigned int __stdcall worker_thread(void* tag)
     ReadIOContext* readio;
     WriteIOContext* writeio;
     AcceptIOContext* acceptio;
+    ConnectIOContext* connio;
     WSARet ret = false;
     DWORD dwBytesTransfered;
 
@@ -628,6 +717,11 @@ static unsigned int __stdcall worker_thread(void* tag)
             );
             pClientSocket->_Read();
             pServerContext->_Accept();
+        }
+        else if(pIoContext->optype == OpType::Connect) {
+            pClientSocket = static_cast<ClientSocketContext*>(pBaseSocket);
+            connio = static_cast<ConnectIOContext*>(pIoContext);
+            pClientSocket->_OnConnected(connio);
         }
         else if(pIoContext->optype == OpType::Read) {
             pClientSocket = static_cast<ClientSocketContext*>(pBaseSocket);
@@ -773,20 +867,37 @@ public:
     SocksServer(ClientSocketContext* client)
         : _client(client)
         , _phrase(Phrase::Init)
+        , _i(0)
     {
-        _client->OnRead([this](ClientSocketContext*, unsigned char* data, size_t size) {
+        _client->OnRead([&](ClientSocketContext*, unsigned char* data, size_t size) {
             feed(data, size);
         });
 
-        _client->OnWritten([this](ClientSocketContext*, size_t size) {
+        _i = 0;
+
+        _client->OnWritten([&](ClientSocketContext*, size_t size) {
+            _i += size;
+            if(_i == 8) {
+                _client->OnWritten([&](ClientSocketContext*, size_t size) {
+                    std::cout << "发送给浏览器 " << _client->fd << ": "  << size << std::endl;
+                    if(size > _send.size()) {
+                        // assert("fail" && 0);
+                        size = _send.size();
+                    }
+                    _send.erase(_send.cbegin(), _send.cbegin() + size);
+                    if(!_send.empty()) {
+                        _client->Write(_send.data(), _send.size(), nullptr);
+                    }
+                });
+            }
             _send.erase(_send.cbegin(), _send.cbegin() + size);
             if(!_send.empty()) {
                 _client->Write(_send.data(), _send.size(), nullptr);
             }
         });
 
-        _client->OnClosed([this](ClientSocketContext*) {
-            delete this;
+        _client->OnClosed([&](ClientSocketContext*) {
+            //delete this;
         });
     }
 
@@ -879,28 +990,70 @@ public:
 
                 D.erase(D.begin(), term + 1);
 
-                _client->OnRead([this](ClientSocketContext*, unsigned char* data, size_t size) {
-                    _send.insert(_send.cend(), data, data + size);
-                });
-
-                _send.push_back(0x00);
-                _send.push_back(ConnectionStatus::Fail);
-                _send.push_back(_port >> 8);
-                _send.push_back(_port & 0xff);
-
                 resolver rsv;
                 if(!rsv.resolve(_domain, std::to_string(_port))) {
                     assert(0);
                 }
 
-                auto addr = ::htonl(rsv[0]);
-                char* a = (char*)&addr;
-                _send.push_back(a[0]);
-                _send.push_back(a[1]);
-                _send.push_back(a[2]);
-                _send.push_back(a[3]);
+                SOCKET fd = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
+                assert(fd != INVALID_SOCKET);
 
-                _client->Write(_send.data(), _send.size(), nullptr);
+                auto c = new ClientSocketContext(_client->_disp, fd);
+                ::CreateIoCompletionPort((HANDLE)fd, g_hiocp, (ULONG_PTR)static_cast<BaseSocketContext*>(c), 0);
+
+                auto remote_addr = rsv[0];
+
+                c->OnConnected([&,c](ClientSocketContext*) {
+                    std::cout << "Connected to " << _domain << std::endl;
+
+                    _client->OnRead([&,c](ClientSocketContext*, unsigned char* data, size_t size) {
+                        std::cout << "收到浏览器 " << _client->fd << ":" <<  size << std::endl;
+                       _recv.insert(_recv.cend(), data, data + size);
+                       c->Write(_recv.data(), _recv.size(), nullptr);
+                    });
+
+                    _send.push_back(0x00);
+                    _send.push_back(ConnectionStatus::Success);
+                    _send.push_back(_port >> 8);
+                    _send.push_back(_port & 0xff);
+
+                    //auto addr = ::htonl(remote_addr);
+                    auto addr = remote_addr;
+                    char* a = (char*)&addr;
+                    _send.push_back(a[0]);
+                    _send.push_back(a[1]);
+                    _send.push_back(a[2]);
+                    _send.push_back(a[3]);
+
+                    _client->Write(_send.data(), _send.size(), nullptr);
+
+                    c->OnRead([this](ClientSocketContext*, unsigned char* data, size_t size) {
+                        std::cout << "收到服务器 "<< _client->fd << ":"  << size << std::endl;
+                        _send.insert(_send.cend(), data, data + size);
+                        _client->Write(_send.data(), _send.size(), nullptr);
+                    });
+
+                    c->OnWritten([this](ClientSocketContext*, size_t size) {
+                        std::cout << "发送给服务器 " << _client->fd << ":" << size << std::endl;
+                        _recv.erase(_recv.cbegin(), _recv.cbegin() + size);
+                    });
+
+                    c->OnClosed([this](ClientSocketContext*) {
+                        _client->Close();
+                    });
+
+                    c->_Read();
+                });
+
+                sockaddr_in sai = {0};
+                sai.sin_family = PF_INET;
+                sai.sin_addr.S_un.S_addr = INADDR_ANY;
+                sai.sin_port = 0;
+                WSAIntRet r = ::bind(fd, (sockaddr*)&sai, sizeof(sai));
+                assert(r.Succ());
+                sai.sin_addr.S_un.S_addr = rsv[0];
+                sai.sin_port = ::htons(_port);
+                c->Connect(sai);
 
                 break;
             }
@@ -909,6 +1062,7 @@ public:
     }
 
 protected:
+    int _i;
     Phrase::Value _phrase;
     ClientSocketContext* _client;
     std::vector<unsigned char> _send;
@@ -934,6 +1088,8 @@ int main()
     HANDLE hIocp = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
     assert(hIocp != nullptr);
     LogLog("IOCP 句柄：%p", hIocp);
+
+    g_hiocp = hIocp;
 
     SOCKET sckServer = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
     assert(sckServer != INVALID_SOCKET);
@@ -962,6 +1118,7 @@ int main()
     DWORD dwBytes = 0;
     GUID guidAcceptEx = WSAID_ACCEPTEX;
     GUID guidGetAcceptExSockAddrs = WSAID_GETACCEPTEXSOCKADDRS;
+    GUID guidConnectEx = WSAID_CONNECTEX;
 
     WSAIoctl(
         sckServer,
@@ -981,9 +1138,19 @@ int main()
         nullptr, nullptr
         );
 
+    WSAIoctl(
+        sckServer,
+        SIO_GET_EXTENSION_FUNCTION_POINTER,
+        &guidConnectEx, sizeof(guidConnectEx),
+        &s_fnConnectEx, sizeof(s_fnConnectEx),
+        &dwBytes,
+        nullptr, nullptr
+    );
+
 
     assert(s_fnAcceptEx != nullptr);
     assert(s_fnGetAcceptExSockAddrs != nullptr);
+    assert(s_fnConnectEx != nullptr);
 
 
     for(auto i = 0; i < 1; i++) {
