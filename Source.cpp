@@ -865,6 +865,7 @@ private:
             Addr,
             Domain,
             User,
+            Finish,
         };
     };
 
@@ -875,6 +876,9 @@ public:
     {
         _client->OnRead([&](ClientSocketContext*, unsigned char* data, size_t size) {
             feed(data, size);
+            if(_phrase == Phrase::Finish) {
+                finish();
+            }
         });
 
         _client->OnWritten([&](ClientSocketContext*, size_t size) {
@@ -897,10 +901,10 @@ public:
             switch(_phrase) {
             case Phrase::Init:
             {
-                auto ver = (SocksVersion::Value)D[0];
+                _ver = (SocksVersion::Value)D[0];
                 D.erase(D.begin());
 
-                if(ver != SocksVersion::v4) {
+                if(_ver != SocksVersion::v4) {
                     assert(0);
                 }
 
@@ -958,7 +962,14 @@ public:
                 }
 
                 D.erase(D.begin(), term + 1);
-                _phrase = Phrase::Domain;
+
+                _is_v4a = _addr.S_un.S_un_b.s_b1 == 0
+                    && _addr.S_un.S_un_b.s_b2 == 0
+                    && _addr.S_un.S_un_b.s_b3 == 0
+                    && _addr.S_un.S_un_b.s_b4 != 0;
+
+                _phrase = _is_v4a ? Phrase::Domain : Phrase::Finish;
+
                 break;
             }
             case Phrase::Domain:
@@ -975,67 +986,7 @@ public:
 
                 D.erase(D.begin(), term + 1);
 
-                resolver rsv;
-                if(!rsv.resolve(_domain, std::to_string(_port))) {
-                    assert(0);
-                }
-
-                SOCKET fd = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
-                assert(fd != INVALID_SOCKET);
-
-                auto c = new ClientSocketContext(_client->_disp, fd);
-                ::CreateIoCompletionPort((HANDLE)fd, g_hiocp, (ULONG_PTR)static_cast<BaseSocketContext*>(c), 0);
-
-                auto remote_addr = rsv[0];
-
-                c->OnConnected([&,c](ClientSocketContext*) {
-                    std::cout << "Connected to " << _domain << std::endl;
-
-                    _client->OnRead([&,c](ClientSocketContext*, unsigned char* data, size_t size) {
-                        std::cout << "收到浏览器 " << _client->fd << ":" <<  size << std::endl;
-                       c->Write(data, size, nullptr);
-                    });
-
-                    std::vector<unsigned char> data;
-                    data.push_back(0x00);
-                    data.push_back(ConnectionStatus::Success);
-                    data.push_back(_port >> 8);
-                    data.push_back(_port & 0xff);
-
-                    auto addr = remote_addr;
-                    char* a = (char*)&addr;
-                    data.push_back(a[0]);
-                    data.push_back(a[1]);
-                    data.push_back(a[2]);
-                    data.push_back(a[3]);
-
-                    _client->Write(data.data(), data.size(), nullptr);
-
-                    c->OnRead([this](ClientSocketContext*, unsigned char* data, size_t size) {
-                        std::cout << "收到服务器 "<< _client->fd << ":"  << size << std::endl;
-                        _client->Write(data, size, nullptr);
-                    });
-
-                    c->OnWritten([this](ClientSocketContext*, size_t size) {
-                        std::cout << "发给服务器 " << _client->fd << ":" << size << std::endl;
-                    });
-
-                    c->OnClosed([this](ClientSocketContext*) {
-                        _client->Close();
-                    });
-
-                    c->_Read();
-                });
-
-                sockaddr_in sai = {0};
-                sai.sin_family = PF_INET;
-                sai.sin_addr.S_un.S_addr = INADDR_ANY;
-                sai.sin_port = 0;
-                WSAIntRet r = ::bind(fd, (sockaddr*)&sai, sizeof(sai));
-                assert(r.Succ());
-                sai.sin_addr.S_un.S_addr = rsv[0];
-                sai.sin_port = ::htons(_port);
-                c->Connect(sai);
+                _phrase = Phrase::Finish;
 
                 break;
             }
@@ -1043,7 +994,87 @@ public:
         }
     }
 
+    void finish()
+    {
+        if(_is_v4a) {
+            resolver rsv;
+            if(!rsv.resolve(_domain, std::to_string(_port))) {
+                assert(0);
+            }
+
+            _addr.S_un.S_addr = rsv[0];
+        }
+
+        SOCKET fd = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
+        assert(fd != INVALID_SOCKET);
+
+        auto c = new ClientSocketContext(_client->_disp, fd);
+        ::CreateIoCompletionPort((HANDLE)fd, g_hiocp, (ULONG_PTR)static_cast<BaseSocketContext*>(c), 0);
+
+        c->OnConnected([&,c](ClientSocketContext*) {
+            std::cout << "Connected to " << _domain << std::endl;
+
+            _client->OnRead([&,c](ClientSocketContext*, unsigned char* data, size_t size) {
+                std::cout << "收到浏览器 " << _client->fd << ":" <<  size << std::endl;
+               c->Write(data, size, nullptr);
+            });
+
+            std::vector<unsigned char> data;
+            data.push_back(0x00);
+            data.push_back(ConnectionStatus::Success);
+
+            if(_is_v4a) {
+                data.push_back(_port >> 8);
+                data.push_back(_port & 0xff);
+
+                auto addr = _addr.S_un.S_addr;
+                char* a = (char*)&addr;
+                data.push_back(a[0]);
+                data.push_back(a[1]);
+                data.push_back(a[2]);
+                data.push_back(a[3]);
+            }
+            else {
+                data.push_back(0);
+                data.push_back(0);
+                data.push_back(0);
+                data.push_back(0);
+                data.push_back(0);
+                data.push_back(0);
+            }
+
+            _client->Write(data.data(), data.size(), nullptr);
+
+            c->OnRead([this](ClientSocketContext*, unsigned char* data, size_t size) {
+                std::cout << "收到服务器 "<< _client->fd << ":"  << size << std::endl;
+                _client->Write(data, size, nullptr);
+            });
+
+            c->OnWritten([this](ClientSocketContext*, size_t size) {
+                std::cout << "发给服务器 " << _client->fd << ":" << size << std::endl;
+            });
+
+            c->OnClosed([this](ClientSocketContext*) {
+                _client->Close();
+            });
+
+            c->_Read();
+        });
+
+        sockaddr_in sai = {0};
+        sai.sin_family = PF_INET;
+        sai.sin_addr.S_un.S_addr = INADDR_ANY;
+        sai.sin_port = 0;
+        WSAIntRet r = ::bind(fd, (sockaddr*)&sai, sizeof(sai));
+        assert(r.Succ());
+        sai.sin_addr = _addr;
+        sai.sin_port = ::htons(_port);
+        c->Connect(sai);
+    }
+
 protected:
+    SocksVersion::Value _ver;
+    bool _is_v4a;
     Phrase::Value _phrase;
     ClientSocketContext* _client;
     std::vector<unsigned char> _recv;
