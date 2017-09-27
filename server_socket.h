@@ -50,21 +50,16 @@ struct AcceptIOContext : BaseIOContext
         return R;
     }
 
-    void GetAddresses(SOCKADDR_IN* local, SOCKADDR_IN* remote)
+    void GetAddresses(SOCKADDR_IN** local, SOCKADDR_IN** remote)
     {
         int len;
-        SOCKADDR_IN* _local;
-        SOCKADDR_IN* _remote;
 
         WSA::GetAcceptExSockAddrs(
             buf,
             0, sizeof(SOCKADDR_IN) + 16, sizeof(SOCKADDR_IN) + 16,
-            (sockaddr**)&_local, &len,
-            (sockaddr**)&_remote, &len
+            (sockaddr**)local, &len,
+            (sockaddr**)remote, &len
         );
-
-        std::memcpy(local, _local, sizeof(SOCKADDR_IN));
-        std::memcpy(remote, _remote, sizeof(SOCKADDR_IN));
     }
 
     SOCKET fd;
@@ -72,8 +67,6 @@ struct AcceptIOContext : BaseIOContext
 };
 
 }
-
-struct ClientSocket;
 
 struct ServerSocket: public BaseSocket
 {

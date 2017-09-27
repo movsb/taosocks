@@ -75,7 +75,7 @@ WSARet ClientSocket::Write(const unsigned char * data, size_t size, void * tag)
     }
     return ret;
 }
-WSARet ClientSocket::_Read()
+WSARet ClientSocket::Read()
 {
     auto readio = new ReadIOContext();
     auto ret = readio->Read(_fd);
@@ -99,7 +99,7 @@ void ClientSocket::_OnRead(ReadIOContext& io)
         data.data = io.buf;
         data.size = dwBytes;
         Dispatch(data);
-        _Read();
+        Read();
     }
     else {
         if(flags & Flags::Closed) {

@@ -102,8 +102,9 @@ struct ConnectIOContext : BaseIOContext
 }
 
 
-struct ClientSocket: public BaseSocket
+class ClientSocket: public BaseSocket
 {
+private:
     struct Flags
     {
         enum Value
@@ -145,6 +146,7 @@ struct ClientSocket: public BaseSocket
         { }
     };
 
+public:
     ClientSocket(threading::Dispatcher& disp)
         : BaseSocket(disp)
         , flags(0)
@@ -152,19 +154,23 @@ struct ClientSocket: public BaseSocket
 
     }
 
-    ClientSocket(threading::Dispatcher& disp, SOCKET fd)
+    ClientSocket(Dispatcher& disp, SOCKET fd, const SOCKADDR_IN& local, const SOCKADDR_IN& remote)
         : BaseSocket(disp, fd)
         , flags(0)
+        , _local(local)
+        , _remote(remote)
     {
 
     }
 
-    SOCKADDR_IN local;
-    SOCKADDR_IN remote;
     typedef std::function<void(ClientSocket*, unsigned char*, size_t)> OnReadT;
     typedef std::function<void(ClientSocket*, size_t)> OnWrittenT;
     typedef std::function<void(ClientSocket*)> OnClosedT;
     typedef std::function<void(ClientSocket*)> OnConnectedT;
+
+private:
+    SOCKADDR_IN _local;
+    SOCKADDR_IN _remote;
     OnReadT _onRead;
     OnWrittenT _onWritten;
     OnClosedT _onClosed;
@@ -172,24 +178,26 @@ struct ClientSocket: public BaseSocket
     DWORD flags;
 
 
-    void Close();
-
+public:
     void OnRead(OnReadT onRead);
     void OnWritten(OnWrittenT onWritten);
     void OnClosed(OnClosedT onClose);
     void OnConnected(OnConnectedT onConnected);
 
     WSARet Connect(in_addr & addr, unsigned short port);
+    WSARet Read();
     WSARet Write(const char* data, size_t size, void* tag);
     WSARet Write(const char* data, void* tag);
     WSARet Write(const unsigned char* data, size_t size, void* tag);
+    void Close();
 
-    WSARet _Read();
-
+private:
     void _OnRead(ReadIOContext& io);
     WSARet _OnWritten(WriteIOContext& io);
     WSARet _OnConnected(ConnectIOContext& io);
 
+
+private:
     virtual void OnDispatch(BaseDispatchData& data) override;
 
     virtual void OnTask(BaseIOContext& bio) override;

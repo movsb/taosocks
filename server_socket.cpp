@@ -17,7 +17,7 @@ void ServerSocket::Start(ULONG ip, USHORT port)
 
     auto clients = _Accept();
     for(auto& client : clients) {
-        client->_Read();
+        client->Read();
     }
 }
 
@@ -28,11 +28,14 @@ void ServerSocket::OnAccepted(std::function<void(ClientSocket*)> onAccepted)
 
 ClientSocket * ServerSocket::_OnAccepted(AcceptIOContext & io)
 {
-    auto client = new ClientSocket(_disp, io.fd);
-    io.GetAddresses(&client->local, &client->remote);
+    SOCKADDR_IN *local, *remote;
+    io.GetAddresses(&local, &remote);
+
+    auto client = new ClientSocket(_disp, io.fd, *local, *remote);
     AcceptDispatchData data;
     data.client = client;
     Dispatch(data);
+
     return client;
 }
 
@@ -78,7 +81,7 @@ void ServerSocket::OnTask(BaseIOContext& bio)
     if(bio.optype == OpType::Accept) {
         auto aio = static_cast<AcceptIOContext&>(bio);
         auto client = _OnAccepted(aio);
-        client->_Read();
+        client->Read();
         _Accept();
     }
 }

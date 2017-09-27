@@ -181,7 +181,7 @@ void SocksServer::finish()
             _client->Close();
         });
 
-        c->_Read();
+        c->Read();
     });
 
     c->Connect(_addr, _port);
