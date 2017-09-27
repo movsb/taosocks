@@ -144,7 +144,7 @@ WSARet ClientSocket::_OnConnected(ConnectIOContext& io)
 
     return ret;
 }
-void ClientSocket::Invoke(BaseDispatchData & data)
+void ClientSocket::OnDispatch(BaseDispatchData & data)
 {
     switch(data.optype) {
     case OpType::Read:
@@ -174,7 +174,7 @@ void ClientSocket::Invoke(BaseDispatchData & data)
     }
 }
 
-void ClientSocket::Handle(BaseIOContext& bio)
+void ClientSocket::OnTask(BaseIOContext& bio)
 {
     if(bio.optype == OpType::Read) {
         _OnRead(static_cast<ReadIOContext&>(bio));
@@ -185,6 +185,11 @@ void ClientSocket::Handle(BaseIOContext& bio)
     else if(bio.optype == OpType::Connect) {
         _OnConnected(static_cast<ConnectIOContext&>(bio));
     }
+}
+
+int ClientSocket::GetDescriptor()
+{
+    return static_cast<int>(GetSocket());
 }
 
 }

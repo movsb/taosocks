@@ -14,16 +14,16 @@ void BaseSocket::Dispatch(BaseDispatchData & data)
     return _disp.Dispatch(this, &data);
 }
 
-void BaseSocket::Invoke(void * data)
+void BaseSocket::OnDispatch(void * data)
 {
     auto base = static_cast<BaseDispatchData*>(data);
-    return Invoke(*base);
+    return OnDispatch(*base);
 }
 
-void BaseSocket::Handle(OVERLAPPED* overlapped)
+void BaseSocket::OnTask(OVERLAPPED* overlapped)
 {
     auto io = reinterpret_cast<BaseIOContext*>(overlapped);
-    return Handle(*io);
+    return OnTask(*io);
 }
 
 WSARet BaseIOContext::GetResult(SOCKET fd, DWORD* pdwBytes /*= nullptr*/, DWORD* pdwFlags /*= nullptr*/)

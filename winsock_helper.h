@@ -143,4 +143,7 @@ protected:
 
 
 }
+
+using namespace winsock;
+
 }

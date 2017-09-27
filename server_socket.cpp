@@ -61,7 +61,7 @@ std::vector<ClientSocket*> ServerSocket::_Accept()
     return std::move(clients);
 }
 
-void ServerSocket::Invoke(BaseDispatchData & data)
+void ServerSocket::OnDispatch(BaseDispatchData & data)
 {
     switch(data.optype) {
     case OpType::Accept:
@@ -73,7 +73,7 @@ void ServerSocket::Invoke(BaseDispatchData & data)
     }
 }
 
-void ServerSocket::Handle(BaseIOContext& bio)
+void ServerSocket::OnTask(BaseIOContext& bio)
 {
     if(bio.optype == OpType::Accept) {
         auto aio = static_cast<AcceptIOContext&>(bio);
@@ -81,6 +81,11 @@ void ServerSocket::Handle(BaseIOContext& bio)
         client->_Read();
         _Accept();
     }
+}
+
+int ServerSocket::GetDescriptor()
+{
+    return static_cast<int>(GetSocket());
 }
 
 }

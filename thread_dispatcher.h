@@ -9,7 +9,7 @@ namespace threading {
 
 struct IDispatcher
 {
-    virtual void Invoke(void* data) = 0;
+    virtual void OnDispatch(void* data) = 0;
 };
 
 class Dispatcher
@@ -33,4 +33,7 @@ protected:
 };
 
 }
+
+using threading::Dispatcher;
+
 }

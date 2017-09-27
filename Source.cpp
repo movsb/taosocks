@@ -37,23 +37,23 @@ int main()
 #endif // DEBUG
 #endif
 
-    winsock::WSA wsa;
+    WSA wsa;
 
     wsa.Startup();
 
-    iocp::IOCP iocp;
+    IOCP iocp;
 
-    threading::Dispatcher disp;
+    Dispatcher disp;
 
     ServerSocket server(disp);
 
-    iocp.Attach(server.GetSocket(), &server);
+    iocp.Attach(&server);
 
     server.OnAccepted([&](ClientSocket* client) {
-        iocp.Attach(client->GetSocket(), client);
+        iocp.Attach(client);
         auto ss = new SocksServer(disp, client);
         ss->OnCreateRelayer([&](ClientSocket* relay) {
-            iocp.Attach(relay->GetSocket(), relay);
+            iocp.Attach(relay);
         });
     });
 

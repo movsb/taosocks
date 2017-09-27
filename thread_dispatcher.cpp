@@ -3,7 +3,7 @@
 namespace taosocks {
 namespace threading {
 
-const UINT const s_msg = WM_USER + 1;
+const UINT s_msg = WM_USER + 1;
 const char* const s_cls = "{2FF09706-39AD-4FA0-B137-C4416E39C973}";
 
 Dispatcher::Dispatcher()
@@ -51,7 +51,7 @@ LRESULT Dispatcher::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     if(uMsg == s_msg) {
         auto pDisp = reinterpret_cast<IDispatcher*>(wParam);
         auto pData = reinterpret_cast<void*>(lParam);
-        pDisp->Invoke(pData);
+        pDisp->OnDispatch(pData);
         return 0;
     }
 

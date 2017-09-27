@@ -9,7 +9,8 @@ namespace iocp {
 
 struct TaskHandler
 {
-    virtual void Handle(OVERLAPPED* overlapped) = 0;
+    virtual void OnTask(OVERLAPPED* overlapped) = 0;
+    virtual int  GetDescriptor() = 0;
 };
 
 class IOCP
@@ -28,8 +29,10 @@ public:
 
 
 public:
-    void Attach(SOCKET fd, TaskHandler* handler);
-    void PostStatus(TaskHandler* handler, const OVERLAPPED& overlapped);
+    void Attach(TaskHandler* handler);
+    void PostStatus(const TaskHandler& handler, const OVERLAPPED& overlapped);
+
+protected:
     bool GetStatus(TaskHandler** handler, OVERLAPPED** overlapped);
 
 protected:
@@ -45,4 +48,7 @@ protected:
 };
 
 }
+
+using iocp::IOCP;
+
 }

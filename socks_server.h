@@ -72,7 +72,7 @@ protected:
     unsigned short _port;
     in_addr _addr;
     std::string _domain;
-    threading::Dispatcher _disp;
+    Dispatcher _disp;
 };
 
 }

@@ -102,8 +102,10 @@ public:
 
     std::vector<ClientSocket*> _Accept();
 
-    virtual void Invoke(BaseDispatchData& data) override;
-    virtual void Handle(BaseIOContext& bio) override;
+    virtual void OnDispatch(BaseDispatchData& data) override;
+
+    virtual void OnTask(BaseIOContext& bio) override;
+    virtual int GetDescriptor() override;
 };
 
 }
