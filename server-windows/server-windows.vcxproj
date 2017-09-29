@@ -19,9 +19,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{729DEFB3-A287-4005-A5FE-82C1E361B053}</ProjectGuid>
+    <ProjectGuid>{4BCA2573-3B42-4327-91FA-00BA217EF9F4}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>iocp</RootNamespace>
+    <RootNamespace>serverwindows</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -34,7 +34,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -42,14 +42,14 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
-    <CharacterSet>MultiByte</CharacterSet>
+    <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>MultiByte</CharacterSet>
+    <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -89,6 +89,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>..</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -120,14 +121,13 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>..</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <MinimumRequiredVersion>5.02</MinimumRequiredVersion>
       <AdditionalDependencies>ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -150,25 +150,24 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="base_socket.cpp" />
-    <ClCompile Include="client_socket.cpp" />
-    <ClCompile Include="iocp_model.cpp" />
-    <ClCompile Include="packet_manager.cpp" />
-    <ClCompile Include="server_socket.cpp" />
-    <ClCompile Include="socks_server.cpp" />
-    <ClCompile Include="Source.cpp" />
-    <ClCompile Include="thread_dispatcher.cpp" />
-    <ClCompile Include="winsock_helper.cpp" />
+    <ClCompile Include="..\base_socket.cpp" />
+    <ClCompile Include="..\client_socket.cpp" />
+    <ClCompile Include="..\iocp_model.cpp" />
+    <ClCompile Include="..\server_socket.cpp" />
+    <ClCompile Include="..\thread_dispatcher.cpp" />
+    <ClCompile Include="..\winsock_helper.cpp" />
+    <ClCompile Include="main.cc" />
+    <ClCompile Include="packet_manager.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="base_socket.h" />
-    <ClInclude Include="client_socket.h" />
-    <ClInclude Include="iocp_model.h" />
+    <ClInclude Include="..\base_socket.h" />
+    <ClInclude Include="..\client_socket.h" />
+    <ClInclude Include="..\iocp_model.h" />
+    <ClInclude Include="..\packet_manager.h" />
+    <ClInclude Include="..\server_socket.h" />
+    <ClInclude Include="..\thread_dispatcher.h" />
+    <ClInclude Include="..\winsock_helper.h" />
     <ClInclude Include="packet_manager.h" />
-    <ClInclude Include="server_socket.h" />
-    <ClInclude Include="socks_server.h" />
-    <ClInclude Include="thread_dispatcher.h" />
-    <ClInclude Include="winsock_helper.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

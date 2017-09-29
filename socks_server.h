@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "client_socket.h"
-#include "thread_dispatcher.h"
+#include "packet_manager.h"
 
 namespace taosocks {
 namespace {
@@ -33,8 +33,38 @@ struct ConnectionStatus
 
 }
 
+struct SocksInfo
+{
+    std::string host;
+    unsigned short port;
+};
 
-class SocksServer
+#pragma pack(push,1)
+
+struct ResolveAndConnectPacket : BasePacket
+{
+    char host[256];
+    char service[32];
+
+    static ResolveAndConnectPacket* Create(const std::string& host, const std::string& service)
+    {
+        auto p = new ResolveAndConnectPacket;
+        p->__cmd = PacketCommand::ResolveAndConnect;
+        p->__size = sizeof(ResolveAndConnectPacket);
+
+        assert(host.size() > 0 && host.size() < _countof(p->host));
+        assert(service.size() > 0 && service.size() < _countof(p->service));
+
+        std::strcpy(p->host, host.c_str());
+        std::strcpy(p->service, service.c_str());
+
+        return p;
+    }
+};
+
+#pragma pack(pop)
+
+class SocksServer : public IPacketHandler
 {
 private:
     struct Phrase
@@ -51,10 +81,10 @@ private:
     };
 
 public:
-    SocksServer(threading::Dispatcher& disp, ClientSocket* client);
-    void OnCreateRelayer(std::function<void(ClientSocket*)> callback)
+    SocksServer(PacketManager& pktmgr, ClientSocket* client);
+    void OnSucceeded(std::function<void(const SocksInfo& info)> callback)
     {
-        _onCreateRelayer = callback;
+        _onSucceeded = callback;
     }
 
 public:
@@ -63,7 +93,8 @@ public:
     void finish();
 
 protected:
-    std::function<void(ClientSocket*)> _onCreateRelayer;
+    PacketManager& _pktmgr;
+    std::function<void(const SocksInfo& info)> _onSucceeded;
     SocksVersion::Value _ver;
     bool _is_v4a;
     Phrase::Value _phrase;
@@ -72,7 +103,10 @@ protected:
     unsigned short _port;
     in_addr _addr;
     std::string _domain;
-    Dispatcher _disp;
+
+    // Inherited via IPacketHandler
+    virtual int GetDescriptor() override { return _client->GetDescriptor(); }
+    virtual void OnPacket(packet_manager::BasePacket* packet) override;
 };
 
 }

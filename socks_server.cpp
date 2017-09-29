@@ -4,10 +4,13 @@
 
 namespace taosocks {
 
-SocksServer::SocksServer(threading::Dispatcher& disp, ClientSocket * client)
+SocksServer::SocksServer(PacketManager& pktmgr, ClientSocket * client)
     : _client(client)
+    , _pktmgr(pktmgr)
     , _phrase(Phrase::Init)
 {
+    _pktmgr.AddHandler(this);
+
     _client->OnRead([&](ClientSocket*, unsigned char* data, size_t size) {
         feed(data, size);
         if(_phrase == Phrase::Finish) {
@@ -20,7 +23,7 @@ SocksServer::SocksServer(threading::Dispatcher& disp, ClientSocket * client)
     });
 
     _client->OnClosed([&](ClientSocket*) {
-        //delete this;
+
     });
 }
 void SocksServer::feed(const unsigned char * data, size_t size)
@@ -128,17 +131,10 @@ void SocksServer::feed(const unsigned char * data, size_t size)
 
 void SocksServer::finish()
 {
-    if(_is_v4a) {
-        resolver rsv;
-        if(!rsv.resolve(_domain, std::to_string(_port))) {
-            assert(0);
-        }
+    auto pkt = ResolveAndConnectPacket::Create(_domain, std::to_string(_port));
+    _pktmgr.Send(pkt);
 
-        _addr.S_un.S_addr = rsv[0];
-    }
-
-    auto c = new ClientSocket(_disp);
-    _onCreateRelayer(c);
+    /*
     c->OnConnected([&, c](ClientSocket*) {
         _client->OnRead([&, c](ClientSocket*, unsigned char* data, size_t size) {
             c->Write(data, size, nullptr);
@@ -185,6 +181,13 @@ void SocksServer::finish()
     });
 
     c->Connect(_addr, _port);
+    */
 }
+
+void SocksServer::OnPacket(packet_manager::BasePacket* packet)
+{
+
+}
+
 }
 

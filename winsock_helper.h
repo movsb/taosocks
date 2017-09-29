@@ -58,11 +58,11 @@ public:
 class WSA
 {
 public:
-    void Startup();
-    void Shutdown();
+    static void Startup();
+    static void Shutdown();
 
 protected:
-    void _Init();
+    static void _Init();
 
 public:
     static LPFN_ACCEPTEX                AcceptEx;

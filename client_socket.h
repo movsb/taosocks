@@ -197,7 +197,7 @@ private:
     WSARet _OnConnected(ConnectIOContext& io);
 
 
-private:
+public:
     virtual void OnDispatch(BaseDispatchData& data) override;
 
     virtual void OnTask(BaseIOContext& bio) override;

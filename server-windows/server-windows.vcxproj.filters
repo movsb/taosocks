@@ -15,58 +15,55 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Source.cpp">
+    <ClCompile Include="..\base_socket.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="winsock_helper.cpp">
+    <ClCompile Include="..\client_socket.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="iocp_model.cpp">
+    <ClCompile Include="..\iocp_model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="thread_dispatcher.cpp">
+    <ClCompile Include="..\server_socket.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="base_socket.cpp">
+    <ClCompile Include="..\thread_dispatcher.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="server_socket.cpp">
+    <ClCompile Include="..\winsock_helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="client_socket.cpp">
+    <ClCompile Include="main.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="socks_server.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="packet_manager.cpp">
+    <ClCompile Include="packet_manager.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="winsock_helper.h">
+    <ClInclude Include="..\base_socket.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="iocp_model.h">
+    <ClInclude Include="..\client_socket.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="thread_dispatcher.h">
+    <ClInclude Include="..\iocp_model.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="socks_server.h">
+    <ClInclude Include="..\packet_manager.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="base_socket.h">
+    <ClInclude Include="..\server_socket.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="server_socket.h">
+    <ClInclude Include="..\thread_dispatcher.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="client_socket.h">
+    <ClInclude Include="..\winsock_helper.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="packet_manager.h">
-      <Filter>Source Files</Filter>
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
