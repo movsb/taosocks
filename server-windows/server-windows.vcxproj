@@ -153,11 +153,11 @@
     <ClCompile Include="..\base_socket.cpp" />
     <ClCompile Include="..\client_socket.cpp" />
     <ClCompile Include="..\iocp_model.cpp" />
+    <ClCompile Include="..\packet_manager.cpp" />
     <ClCompile Include="..\server_socket.cpp" />
     <ClCompile Include="..\thread_dispatcher.cpp" />
     <ClCompile Include="..\winsock_helper.cpp" />
     <ClCompile Include="main.cc" />
-    <ClCompile Include="packet_manager.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\base_socket.h" />

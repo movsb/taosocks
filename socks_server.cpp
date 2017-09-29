@@ -184,7 +184,7 @@ void SocksServer::finish()
     */
 }
 
-void SocksServer::OnPacket(packet_manager::BasePacket* packet)
+void SocksServer::OnPacket(BasePacket* packet)
 {
 
 }
