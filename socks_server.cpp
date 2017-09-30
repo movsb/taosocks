@@ -2,9 +2,11 @@
 
 #include "socks_server.h"
 
+#include "log.h"
+
 namespace taosocks {
 
-SocksServer::SocksServer(PacketManager& pktmgr, ClientSocket * client)
+SocksServer::SocksServer(ClientPacketManager& pktmgr, ClientSocket * client)
     : _client(client)
     , _pktmgr(pktmgr)
     , _phrase(Phrase::Init)
@@ -14,6 +16,7 @@ SocksServer::SocksServer(PacketManager& pktmgr, ClientSocket * client)
     _client->OnRead([&](ClientSocket*, unsigned char* data, size_t size) {
         feed(data, size);
         if(_phrase == Phrase::Finish) {
+            LogLog("½âÎöÍê³É");
             finish();
         }
     });
@@ -131,15 +134,43 @@ void SocksServer::feed(const unsigned char * data, size_t size)
 
 void SocksServer::finish()
 {
-    auto pkt = ResolveAndConnectPacket::Create(_domain, std::to_string(_port));
-    _pktmgr.Send(pkt);
+    auto p = new ResolveAndConnectPacket;
+    p->__cmd = PacketCommand::ResolveAndConnect;
+    p->__size = sizeof(ResolveAndConnectPacket);
+    p->__sfd = (int)INVALID_SOCKET;
+    p->__cfd = (int)_client->GetDescriptor();
 
-    /*
-    c->OnConnected([&, c](ClientSocket*) {
-        _client->OnRead([&, c](ClientSocket*, unsigned char* data, size_t size) {
-            c->Write(data, size, nullptr);
-        });
+    auto& host = _domain;
+    auto service = std::to_string(_port);
 
+    assert(host.size() > 0 && host.size() < _countof(p->host));
+    assert(service.size() > 0 && service.size() < _countof(p->service));
+
+    std::strcpy(p->host, host.c_str());
+    std::strcpy(p->service, service.c_str());
+
+    _pktmgr.Send(p);
+}
+
+void SocksServer::OnPacket(BasePacket* packet)
+{
+    switch(packet->__cmd)
+    {
+    case PacketCommand::ResolveAndConnectRespond:
+    {
+        auto pkt = static_cast<ResolveAndConnectRespondPacket*>(packet);
+        OnResolveAndConnectRespondPacket(pkt);
+        break;
+    }
+    default:
+        assert(0 && "invalid packet");
+        break;
+    }
+}
+
+void SocksServer::OnResolveAndConnectRespondPacket(ResolveAndConnectRespondPacket* pkt)
+{
+    if(pkt->status) {
         std::vector<unsigned char> data;
         data.push_back(0x00);
         data.push_back(ConnectionStatus::Success);
@@ -166,27 +197,21 @@ void SocksServer::finish()
 
         _client->Write(data.data(), data.size(), nullptr);
 
-        c->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
-            _client->Write(data, size, nullptr);
-        });
-
-        c->OnWritten([this](ClientSocket*, size_t size) {
-        });
-
-        c->OnClosed([this](ClientSocket*) {
-            _client->Close();
-        });
-
-        c->Read();
-    });
-
-    c->Connect(_addr, _port);
-    */
-}
-
-void SocksServer::OnPacket(BasePacket* packet)
-{
-
+        ConnectionInfo info;
+        info.sfd = pkt->__sfd;
+        info.cfd = pkt->__cfd;
+        info.addr = pkt->addr;
+        info.port = pkt->port;
+        info.client = _client;
+        assert(_onSucceeded);
+        _pktmgr.RemoveHandler(this);
+        _onSucceeded(info);
+    }
+    else {
+        ConnectionInfo info;
+        assert(_onFailed);
+        _onFailed(info);
+    }
 }
 
 }

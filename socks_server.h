@@ -33,33 +33,33 @@ struct ConnectionStatus
 
 }
 
-struct SocksInfo
-{
-    std::string host;
-    unsigned short port;
-};
-
 #pragma pack(push,1)
 
 struct ResolveAndConnectPacket : BasePacket
 {
     char host[256];
     char service[32];
+};
 
-    static ResolveAndConnectPacket* Create(const std::string& host, const std::string& service)
+struct ResolveAndConnectRespondPacket : BasePacket
+{
+    unsigned long  addr;
+    unsigned short port;
+    bool status;
+
+    static ResolveAndConnectRespondPacket* Create(unsigned long addr, unsigned short port, bool status)
     {
-        auto p = new ResolveAndConnectPacket;
-        p->__cmd = PacketCommand::ResolveAndConnect;
-        p->__size = sizeof(ResolveAndConnectPacket);
+        auto p = new ResolveAndConnectRespondPacket;
+        p->__size = sizeof(ResolveAndConnectRespondPacket);
+        p->__cmd = PacketCommand::ResolveAndConnectRespond;
 
-        assert(host.size() > 0 && host.size() < _countof(p->host));
-        assert(service.size() > 0 && service.size() < _countof(p->service));
-
-        std::strcpy(p->host, host.c_str());
-        std::strcpy(p->service, service.c_str());
+        p->addr = addr;
+        p->port = port;
+        p->status = status;
 
         return p;
     }
+
 };
 
 #pragma pack(pop)
@@ -81,10 +81,28 @@ private:
     };
 
 public:
-    SocksServer(PacketManager& pktmgr, ClientSocket* client);
-    void OnSucceeded(std::function<void(const SocksInfo& info)> callback)
+    SocksServer(ClientPacketManager& pktmgr, ClientSocket* client);
+
+    struct ConnectionInfo
+    {
+        unsigned long addr;
+        unsigned short port;
+        int cfd;
+        int sfd;
+        ClientSocket* client;
+    };
+
+    typedef std::function<void(ConnectionInfo&)> OnSucceededT;
+    typedef std::function<void(ConnectionInfo&)> OnFailedT;
+
+    void OnSucceeded(OnSucceededT callback)
     {
         _onSucceeded = callback;
+    }
+
+    void OnFailed(OnFailedT callback)
+    {
+        _onFailed = callback;
     }
 
 public:
@@ -93,8 +111,7 @@ public:
     void finish();
 
 protected:
-    PacketManager& _pktmgr;
-    std::function<void(const SocksInfo& info)> _onSucceeded;
+    ClientPacketManager& _pktmgr;
     SocksVersion::Value _ver;
     bool _is_v4a;
     Phrase::Value _phrase;
@@ -103,10 +120,15 @@ protected:
     unsigned short _port;
     in_addr _addr;
     std::string _domain;
+    OnSucceededT _onSucceeded;
+    OnFailedT _onFailed;
 
     // Inherited via IPacketHandler
     virtual int GetDescriptor() override { return _client->GetDescriptor(); }
-    virtual void OnPacket(packet_manager::BasePacket* packet) override;
+    virtual void OnPacket(BasePacket* packet) override;
+
+private:
+    void OnResolveAndConnectRespondPacket(ResolveAndConnectRespondPacket* pkt);
 };
 
 }

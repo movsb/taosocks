@@ -87,13 +87,13 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;TAOLOG_ENABLED;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ws2_32.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -128,7 +128,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <MinimumRequiredVersion>5.02</MinimumRequiredVersion>
-      <AdditionalDependencies>ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ws2_32.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -154,6 +154,7 @@
     <ClCompile Include="client_socket.cpp" />
     <ClCompile Include="iocp_model.cpp" />
     <ClCompile Include="packet_manager.cpp" />
+    <ClCompile Include="relay_client.cpp" />
     <ClCompile Include="server_socket.cpp" />
     <ClCompile Include="socks_server.cpp" />
     <ClCompile Include="Source.cpp" />
@@ -164,7 +165,9 @@
     <ClInclude Include="base_socket.h" />
     <ClInclude Include="client_socket.h" />
     <ClInclude Include="iocp_model.h" />
+    <ClInclude Include="log.h" />
     <ClInclude Include="packet_manager.h" />
+    <ClInclude Include="relay_client.h" />
     <ClInclude Include="server_socket.h" />
     <ClInclude Include="socks_server.h" />
     <ClInclude Include="thread_dispatcher.h" />

@@ -4,6 +4,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <algorithm>
 
 #include "client_socket.h"
 #include "thread_dispatcher.h"
@@ -13,23 +14,43 @@ namespace packet_manager {
 
 struct Command {
     enum Value {
+        __Beg,
         ResolveAndConnect,
+        ResolveAndConnectRespond,
+        Relay,
+        __End,
     };
 };
 }
 
 typedef packet_manager::Command PacketCommand;
 
-namespace packet_manager {
-
 #pragma pack(push, 1)
 
 struct  BasePacket
 {
-    size_t __size;
-    int __cmd;
-    int __sfd;
-    int __cfd;
+    int  __size;
+    GUID __guid;
+    int  __cmd;
+    int  __sfd;
+    int  __cfd;
+};
+
+struct RelayPacket : BasePacket
+{
+    unsigned char data[1];
+
+    static RelayPacket* Create(SOCKET sfd, SOCKET cfd, const unsigned char* data, size_t size)
+    {
+        auto pkt_size = sizeof(BasePacket) + size;
+        auto p = new (new char[pkt_size]) RelayPacket;
+        p->__size = pkt_size;
+        p->__cmd = PacketCommand::Relay;
+        p->__sfd = sfd;
+        p->__cfd = cfd;
+        std::memcpy(p->data, data, size);
+        return p;
+    }
 };
 
 #pragma pack(pop)
@@ -40,30 +61,39 @@ struct IPacketHandler
     virtual void OnPacket(BasePacket* packet) = 0;
 };
 
-class PacketManager
+struct IBasePacketManager
 {
 public:
-    PacketManager(Dispatcher& disp);
+    virtual void Send(BasePacket* pkt) = 0;
+    virtual void AddHandler(IPacketHandler* handler) = 0;
+    virtual void RemoveHandler(IPacketHandler* handler) = 0;
+};
 
-    void Start();
+class ClientPacketManager : public IBasePacketManager
+{
+public:
+    ClientPacketManager(Dispatcher& disp);
+
+    void StartActive();
+
     ClientSocket& GetClient() { return _client; }
 
-    void Send(BasePacket* pkt);
+    virtual void Send(BasePacket* pkt) override;
 
-    void AddHandler(IPacketHandler* handler)
+    virtual void AddHandler(IPacketHandler* handler) override
     {
         assert(_handlers.find(handler->GetDescriptor()) == _handlers.cend());
         _handlers[handler->GetDescriptor()] = handler;
     }
 
-    void RemoveHandler(IPacketHandler* handler)
+    virtual void RemoveHandler(IPacketHandler* handler) override
     {
         assert(_handlers.find(handler->GetDescriptor()) != _handlers.cend());
         _handlers.erase(handler->GetDescriptor());
     }
 
 protected:
-    void OnRead(unsigned char* data, size_t size);
+    void OnRead(ClientSocket* clinet, unsigned char* data, size_t size);
 
 protected:
     unsigned int PacketThread();
@@ -71,6 +101,7 @@ protected:
 
 private:
     bool _connected;
+    GUID _guid;
     std::map<int, IPacketHandler*> _handlers;
     std::list<BasePacket*> _packets;
     std::vector<unsigned char> _recv_data;
@@ -79,10 +110,51 @@ private:
     threading::Locker _lock;
 };
 
-}
+struct GUIDLessComparer {
+    bool operator()(const GUID& left, const GUID& right) const
+    {
+        return std::memcmp(&left, &right, sizeof(GUID)) < 0;
+    }
+};
 
-using packet_manager::PacketManager;
-using packet_manager::IPacketHandler;
-using packet_manager::BasePacket;
+class ServerPacketManager : public IBasePacketManager
+{
+public:
+    ServerPacketManager(Dispatcher& disp);
+
+    void StartPassive();
+
+    virtual void Send(BasePacket* pkt) override;
+
+    virtual void AddHandler(IPacketHandler* handler) override
+    {
+        assert(_handlers.find(handler->GetDescriptor()) == _handlers.cend());
+        _handlers[handler->GetDescriptor()] = handler;
+    }
+
+    virtual void RemoveHandler(IPacketHandler* handler) override
+    {
+        assert(_handlers.find(handler->GetDescriptor()) != _handlers.cend());
+        _handlers.erase(handler->GetDescriptor());
+    }
+
+    void AddClient(ClientSocket* client);
+    void RemoveClient(ClientSocket* client);
+
+protected:
+    void OnRead(ClientSocket* clinet, unsigned char* data, size_t size);
+
+protected:
+    unsigned int PacketThread();
+    static unsigned int __stdcall __ThreadProc(void* that);
+
+private:
+    std::map<int, IPacketHandler*> _handlers;
+    std::list<BasePacket*> _packets;
+    std::map<ClientSocket*, std::vector<unsigned char>> _recv_data;
+    Dispatcher& _disp;
+    std::multimap<GUID, ClientSocket*, GUIDLessComparer> _clients;
+    threading::Locker _lock;
+};
 
 }

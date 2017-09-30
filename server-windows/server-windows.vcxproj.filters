@@ -39,6 +39,9 @@
     <ClCompile Include="..\packet_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\relay_client.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\base_socket.h">
@@ -63,6 +66,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\packet_manager.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\log.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\relay_client.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

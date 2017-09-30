@@ -1,15 +1,13 @@
 #include "client_socket.h"
 
-#define LogLog(...)
-#define LogFat(...)
-#define LogWrn(...)
+#include "log.h"
 
 namespace taosocks {
 void ClientSocket::Close()
 {
     flags |= Flags::Closed;
     WSAIntRet ret = closesocket(_fd);
-    LogLog("关闭client,fd=%d,ret=%d", fd, ret.Code());
+    LogLog("关闭client,fd=%d,ret=%d", _fd, ret.Code());
     assert(ret.Succ());
 }
 void ClientSocket::OnRead(OnReadT onRead)
@@ -65,13 +63,13 @@ WSARet ClientSocket::Write(const unsigned char * data, size_t size, void * tag)
     auto writeio = new WriteIOContext();
     auto ret = writeio->Write(_fd, data, size);
     if(ret.Succ()) {
-        LogLog("写立即成功，fd=%d,size=%d", fd, size);
+        LogLog("写立即成功，fd=%d,size=%d", _fd, size);
     }
     else if(ret.Fail()) {
-        LogFat("写错误：fd=%d,code=%d", fd, ret.Code());
+        LogFat("写错误：fd=%d,code=%d", _fd, ret.Code());
     }
     else if(ret.Async()) {
-        LogLog("写异步，fd=%d", fd);
+        LogLog("写异步，fd=%d", _fd);
     }
     return ret;
 }
@@ -80,13 +78,13 @@ WSARet ClientSocket::Read()
     auto readio = new ReadIOContext();
     auto ret = readio->Read(_fd);
     if(ret.Succ()) {
-        LogLog("_Read 立即成功, fd:%d", fd);
+        LogLog("_Read 立即成功, fd:%d", _fd);
     }
     else if(ret.Fail()) {
-        LogFat("读错误：fd:%d,code=%d", fd, ret.Code());
+        LogFat("读错误：fd:%d,code=%d", _fd, ret.Code());
     }
     else if(ret.Async()) {
-        LogLog("读异步 fd:%d", fd);
+        LogLog("读异步 fd:%d", _fd);
     }
     return ret;
 }
@@ -103,15 +101,15 @@ void ClientSocket::_OnRead(ReadIOContext& io)
     }
     else {
         if(flags & Flags::Closed) {
-            LogWrn("已主动关闭连接：fd:%d", fd);
+            LogWrn("已主动关闭连接：fd:%d", _fd);
         }
         else if(ret.Succ() && dwBytes == 0) {
-            LogWrn("已被动关闭连接：fd:%d", fd);
+            LogWrn("已被动关闭连接：fd:%d", _fd);
             CloseDispatchData data;
             Dispatch(data);
         }
         else if(ret.Fail()) {
-            LogFat("读失败：fd=%d,code:%d", fd, ret.Code());
+            LogFat("读失败：fd=%d,code:%d", _fd, ret.Code());
         }
     }
 }
@@ -137,6 +135,7 @@ WSARet ClientSocket::_OnConnected(ConnectIOContext& io)
     if(ret.Succ()) {
         ConnectDispatchData data;
         Dispatch(data);
+        Read();
     }
     else {
         LogFat("连接失败");

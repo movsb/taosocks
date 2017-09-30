@@ -7,9 +7,6 @@
 #include "winsock_helper.h"
 #include "client_socket.h"
 
-#define LogLog(...)
-#define LogFat(...)
-
 namespace taosocks {
 
 namespace {
