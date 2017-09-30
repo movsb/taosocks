@@ -84,7 +84,7 @@ int NewRelayHandler::GetDescriptor()
 
 void NewRelayHandler::OnPacket(BasePacket * packet)
 {
-    if(packet->__cmd == PacketCommand::ResolveAndConnect) {
+    if(packet->__cmd == PacketCommand::Connect) {
         auto pkt = static_cast<ResolveAndConnectPacket*>(packet);
         resolver rsv;
         rsv.resolve(pkt->host, pkt->service);
@@ -97,7 +97,7 @@ void NewRelayHandler::OnPacket(BasePacket * packet)
         c->OnConnected([&,c, pkt, ad, pt](ClientSocket*) {
             auto p = new ResolveAndConnectRespondPacket;
             p->__size = sizeof(ResolveAndConnectRespondPacket);
-            p->__cmd = PacketCommand::ResolveAndConnectRespond;
+            p->__cmd = PacketCommand::Connect;
             p->__sfd = c->GetDescriptor();
             p->__cfd = pkt->__cfd;
             p->__guid = pkt->__guid;

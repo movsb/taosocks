@@ -51,7 +51,7 @@ struct ResolveAndConnectRespondPacket : BasePacket
     {
         auto p = new ResolveAndConnectRespondPacket;
         p->__size = sizeof(ResolveAndConnectRespondPacket);
-        p->__cmd = PacketCommand::ResolveAndConnectRespond;
+        p->__cmd = PacketCommand::Connect;
 
         p->addr = addr;
         p->port = port;

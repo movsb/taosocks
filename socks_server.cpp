@@ -135,7 +135,7 @@ void SocksServer::feed(const unsigned char * data, size_t size)
 void SocksServer::finish()
 {
     auto p = new ResolveAndConnectPacket;
-    p->__cmd = PacketCommand::ResolveAndConnect;
+    p->__cmd = PacketCommand::Connect;
     p->__size = sizeof(ResolveAndConnectPacket);
     p->__sfd = (int)INVALID_SOCKET;
     p->__cfd = (int)_client->GetDescriptor();
@@ -156,7 +156,7 @@ void SocksServer::OnPacket(BasePacket* packet)
 {
     switch(packet->__cmd)
     {
-    case PacketCommand::ResolveAndConnectRespond:
+    case PacketCommand::Connect:
     {
         auto pkt = static_cast<ResolveAndConnectRespondPacket*>(packet);
         OnResolveAndConnectRespondPacket(pkt);

@@ -15,8 +15,7 @@ namespace packet_manager {
 struct Command {
     enum Value {
         __Beg,
-        ResolveAndConnect,
-        ResolveAndConnectRespond,
+        Connect,
         Relay,
         __End,
     };

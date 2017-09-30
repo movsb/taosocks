@@ -149,7 +149,7 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
     recv_data.insert(recv_data.cend(), data, data + size);
     if(recv_data.size() >= sizeof(BasePacket)) {
         auto bpkt = (BasePacket*)recv_data.data();
-        if(bpkt->__cmd == PacketCommand::ResolveAndConnect) {
+        if(bpkt->__cmd == PacketCommand::Connect) {
             AddClient(client);
             _clients.emplace(bpkt->__guid, client);
         }
