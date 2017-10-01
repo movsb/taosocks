@@ -23,7 +23,7 @@ void ClientPacketManager::StartActive()
 
     ::_beginthreadex(nullptr, 0, __ThreadProc, this, 0, nullptr);
 
-    _client.OnConnected([this](ClientSocket*) {
+    _client.OnConnect([this](ClientSocket*) {
         LogLog("已连接到服务端");
         _connected = true;
     });
@@ -33,11 +33,11 @@ void ClientPacketManager::StartActive()
         return OnRead(client, data, size);
     });
 
-    _client.OnWritten([](ClientSocket*, size_t size) {
+    _client.OnWrite([](ClientSocket*, size_t size) {
         LogLog("发送数据 size=%d", size);
     });
 
-    _client.OnClosed([this](ClientSocket*){
+    _client.OnClose([this](ClientSocket*){
         LogLog("连接已关闭");
     });
 
@@ -133,7 +133,7 @@ void ServerPacketManager::AddClient(ClientSocket* client)
         return OnRead(client, data, size);
     });
 
-    client->OnWritten([](ClientSocket* client, size_t size) {
+    client->OnWrite([](ClientSocket* client, size_t size) {
     });
 }
 

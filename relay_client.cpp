@@ -18,11 +18,11 @@ ClientRelayClient::ClientRelayClient(IBasePacketManager* pktmgr, ClientSocket* c
         _pktmgr->Send(p);
     });
 
-    _client->OnWritten([this](ClientSocket*, size_t size) {
+    _client->OnWrite([this](ClientSocket*, size_t size) {
         LogLog("写入了 %d 字节", size);
     });
 
-    _client->OnClosed([this](ClientSocket*) {
+    _client->OnClose([this](ClientSocket*) {
         LogLog("浏览器或网站断开连接");
     });
 }
@@ -55,11 +55,11 @@ ServerRelayClient::ServerRelayClient(IBasePacketManager* pktmgr, ClientSocket* c
         _pktmgr->Send(p);
     });
 
-    _client->OnWritten([this](ClientSocket*, size_t size) {
+    _client->OnWrite([this](ClientSocket*, size_t size) {
         LogLog("写入了 %d 字节", size);
     });
 
-    _client->OnClosed([this](ClientSocket*) {
+    _client->OnClose([this](ClientSocket*) {
         LogLog("浏览器或网站断开连接");
     });
 }
@@ -77,15 +77,15 @@ void ServerRelayClient::OnPacket(BasePacket * packet)
     }
 }
 
-int NewRelayHandler::GetDescriptor()
+int ConnectionHandler::GetDescriptor()
 {
     return (int)INVALID_SOCKET;
 }
 
-void NewRelayHandler::OnPacket(BasePacket * packet)
+void ConnectionHandler::OnPacket(BasePacket * packet)
 {
     if(packet->__cmd == PacketCommand::Connect) {
-        auto pkt = static_cast<ResolveAndConnectPacket*>(packet);
+        auto pkt = static_cast<ConnectPacket*>(packet);
         resolver rsv;
         rsv.resolve(pkt->host, pkt->service);
         assert(rsv.size() > 0);
@@ -94,16 +94,16 @@ void NewRelayHandler::OnPacket(BasePacket * packet)
         auto ad = rsv[0];
         auto pt = std::atoi(pkt->service);
 
-        c->OnConnected([&,c, pkt, ad, pt](ClientSocket*) {
-            auto p = new ResolveAndConnectRespondPacket;
-            p->__size = sizeof(ResolveAndConnectRespondPacket);
+        c->OnConnect([&,c, pkt, ad, pt](ClientSocket*) {
+            auto p = new ConnectRespondPacket;
+            p->__size = sizeof(ConnectRespondPacket);
             p->__cmd = PacketCommand::Connect;
             p->__sfd = c->GetDescriptor();
             p->__cfd = pkt->__cfd;
             p->__guid = pkt->__guid;
             p->addr = ad;
             p->port = pt;
-            p->status = true;
+            p->status = 0;
             _pktmgr->Send(p);
             assert(OnSucceeded);
             OnSucceeded(c, pkt->__cfd, pkt->__guid);

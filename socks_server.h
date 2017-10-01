@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <exception>
 
 #include "client_socket.h"
 #include "packet_manager.h"
@@ -12,7 +13,6 @@ struct SocksVersion
 {
     enum Value {
         v4 = 0x04,
-        v5 = 0x05,
     };
 };
 
@@ -35,22 +35,22 @@ struct ConnectionStatus
 
 #pragma pack(push,1)
 
-struct ResolveAndConnectPacket : BasePacket
+struct ConnectPacket : BasePacket
 {
     char host[256];
     char service[32];
 };
 
-struct ResolveAndConnectRespondPacket : BasePacket
+struct ConnectRespondPacket : BasePacket
 {
     unsigned long  addr;
     unsigned short port;
-    bool status;
+    int status;
 
-    static ResolveAndConnectRespondPacket* Create(unsigned long addr, unsigned short port, bool status)
+    static ConnectRespondPacket* Create(unsigned long addr, unsigned short port, bool status)
     {
-        auto p = new ResolveAndConnectRespondPacket;
-        p->__size = sizeof(ResolveAndConnectRespondPacket);
+        auto p = new ConnectRespondPacket;
+        p->__size = sizeof(ConnectRespondPacket);
         p->__cmd = PacketCommand::Connect;
 
         p->addr = addr;
@@ -66,6 +66,16 @@ struct ResolveAndConnectRespondPacket : BasePacket
 
 class SocksServer : public IPacketHandler
 {
+public:
+    struct ConnectionInfo
+    {
+        unsigned long addr;
+        unsigned short port;
+        int cfd;
+        int sfd;
+        ClientSocket* client;
+    };
+
 private:
     struct Phrase
     {
@@ -83,32 +93,16 @@ private:
 public:
     SocksServer(ClientPacketManager& pktmgr, ClientSocket* client);
 
-    struct ConnectionInfo
-    {
-        unsigned long addr;
-        unsigned short port;
-        int cfd;
-        int sfd;
-        ClientSocket* client;
-    };
+    std::function<void(ConnectionInfo&)> OnSucceed;
+    std::function<void(const std::string&)> OnError;
 
-    typedef std::function<void(ConnectionInfo&)> OnSucceededT;
-    typedef std::function<void(ConnectionInfo&)> OnFailedT;
-
-    void OnSucceeded(OnSucceededT callback)
-    {
-        _onSucceeded = callback;
-    }
-
-    void OnFailed(OnFailedT callback)
-    {
-        _onFailed = callback;
-    }
-
-public:
+protected:
     void feed(const unsigned char* data, size_t size);
-
     void finish();
+
+protected:
+    void _OnClientClose();
+    void _OnClientRead(unsigned char* data, size_t size);
 
 protected:
     ClientPacketManager& _pktmgr;
@@ -120,15 +114,12 @@ protected:
     unsigned short _port;
     in_addr _addr;
     std::string _domain;
-    OnSucceededT _onSucceeded;
-    OnFailedT _onFailed;
 
-    // Inherited via IPacketHandler
     virtual int GetDescriptor() override { return _client->GetDescriptor(); }
     virtual void OnPacket(BasePacket* packet) override;
 
 private:
-    void OnResolveAndConnectRespondPacket(ResolveAndConnectRespondPacket* pkt);
+    void OnConnectPacket(ConnectRespondPacket* pkt);
 };
 
 }

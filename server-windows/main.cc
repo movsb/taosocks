@@ -31,11 +31,11 @@ int main()
 
     ServerPacketManager pktmgr(disp);
     ServerSocket server(disp);
-    NewRelayHandler newrelay(&pktmgr);
+    ConnectionHandler newrelay(&pktmgr);
 
     iocp.Attach(&server);
 
-    server.OnAccepted([&](ClientSocket* client) {
+    server.OnAccept([&](ClientSocket* client) {
         iocp.Attach(client);
         pktmgr.AddClient(client);
     });

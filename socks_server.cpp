@@ -11,23 +11,13 @@ SocksServer::SocksServer(ClientPacketManager& pktmgr, ClientSocket * client)
     , _pktmgr(pktmgr)
     , _phrase(Phrase::Init)
 {
+    assert(_client != nullptr);
+
     _pktmgr.AddHandler(this);
 
-    _client->OnRead([&](ClientSocket*, unsigned char* data, size_t size) {
-        feed(data, size);
-        if(_phrase == Phrase::Finish) {
-            LogLog("解析完成");
-            finish();
-        }
-    });
-
-    _client->OnWritten([&](ClientSocket*, size_t size) {
-
-    });
-
-    _client->OnClosed([&](ClientSocket*) {
-
-    });
+    _client->OnRead([this](ClientSocket*, unsigned char* data, size_t size) { return _OnClientRead(data, size); });
+    _client->OnWrite([this](ClientSocket*, size_t) {});
+    _client->OnClose([this](ClientSocket*) {return _OnClientClose(); });
 }
 void SocksServer::feed(const unsigned char * data, size_t size)
 {
@@ -43,7 +33,7 @@ void SocksServer::feed(const unsigned char * data, size_t size)
             D.erase(D.begin());
 
             if(_ver != SocksVersion::v4) {
-                assert(0);
+                throw "Bad socks version.";
             }
 
             _phrase = Phrase::Command;
@@ -55,7 +45,7 @@ void SocksServer::feed(const unsigned char * data, size_t size)
             D.erase(D.begin());
 
             if(cmd != SocksCommand::Stream) {
-                assert(0);
+                throw "Not supported socks command.";
             }
 
             _phrase = Phrase::Port;
@@ -134,9 +124,9 @@ void SocksServer::feed(const unsigned char * data, size_t size)
 
 void SocksServer::finish()
 {
-    auto p = new ResolveAndConnectPacket;
+    auto p = new ConnectPacket;
     p->__cmd = PacketCommand::Connect;
-    p->__size = sizeof(ResolveAndConnectPacket);
+    p->__size = sizeof(ConnectPacket);
     p->__sfd = (int)INVALID_SOCKET;
     p->__cfd = (int)_client->GetDescriptor();
 
@@ -152,14 +142,35 @@ void SocksServer::finish()
     _pktmgr.Send(p);
 }
 
+void SocksServer::_OnClientClose()
+{
+
+}
+
+void SocksServer::_OnClientRead(unsigned char * data, size_t size)
+{
+    try {
+        feed(data, size);
+    }
+    catch(const std::string& e) {
+
+    }
+
+    if(_phrase == Phrase::Finish) {
+        assert(_recv.empty());
+        LogLog("解析完成");
+        finish();
+    }
+}
+
 void SocksServer::OnPacket(BasePacket* packet)
 {
     switch(packet->__cmd)
     {
     case PacketCommand::Connect:
     {
-        auto pkt = static_cast<ResolveAndConnectRespondPacket*>(packet);
-        OnResolveAndConnectRespondPacket(pkt);
+        auto pkt = static_cast<ConnectRespondPacket*>(packet);
+        OnConnectPacket(pkt);
         break;
     }
     default:
@@ -168,9 +179,9 @@ void SocksServer::OnPacket(BasePacket* packet)
     }
 }
 
-void SocksServer::OnResolveAndConnectRespondPacket(ResolveAndConnectRespondPacket* pkt)
+void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
 {
-    if(pkt->status) {
+    if(pkt->status == 0) {
         std::vector<unsigned char> data;
         data.push_back(0x00);
         data.push_back(ConnectionStatus::Success);
@@ -203,14 +214,13 @@ void SocksServer::OnResolveAndConnectRespondPacket(ResolveAndConnectRespondPacke
         info.addr = pkt->addr;
         info.port = pkt->port;
         info.client = _client;
-        assert(_onSucceeded);
+        assert(OnSucceed);
         _pktmgr.RemoveHandler(this);
-        _onSucceeded(info);
+        OnSucceed(info);
     }
     else {
-        ConnectionInfo info;
-        assert(_onFailed);
-        _onFailed(info);
+        assert(OnError);
+        OnError("连接失败");
     }
 }
 

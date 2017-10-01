@@ -147,7 +147,7 @@ private:
     };
 
 public:
-    ClientSocket(threading::Dispatcher& disp)
+    ClientSocket(Dispatcher& disp)
         : BaseSocket(disp)
         , flags(0)
     {
@@ -164,25 +164,25 @@ public:
     }
 
     typedef std::function<void(ClientSocket*, unsigned char*, size_t)> OnReadT;
-    typedef std::function<void(ClientSocket*, size_t)> OnWrittenT;
-    typedef std::function<void(ClientSocket*)> OnClosedT;
-    typedef std::function<void(ClientSocket*)> OnConnectedT;
+    typedef std::function<void(ClientSocket*, size_t)> OnWriteT;
+    typedef std::function<void(ClientSocket*)> OnCloseT;
+    typedef std::function<void(ClientSocket*)> OnConnectT;
 
 private:
     SOCKADDR_IN _local;
     SOCKADDR_IN _remote;
     OnReadT _onRead;
-    OnWrittenT _onWritten;
-    OnClosedT _onClosed;
-    OnConnectedT _onConnected;
+    OnWriteT _onWrite;
+    OnCloseT _onClose;
+    OnConnectT _onConnect;
     DWORD flags;
 
 
 public:
     void OnRead(OnReadT onRead);
-    void OnWritten(OnWrittenT onWritten);
-    void OnClosed(OnClosedT onClose);
-    void OnConnected(OnConnectedT onConnected);
+    void OnWrite(OnWriteT onWrite);
+    void OnClose(OnCloseT onClose);
+    void OnConnect(OnConnectT onConnect);
 
     WSARet Connect(in_addr & addr, unsigned short port);
     WSARet Read();
@@ -193,8 +193,8 @@ public:
 
 private:
     void _OnRead(ReadIOContext& io);
-    WSARet _OnWritten(WriteIOContext& io);
-    WSARet _OnConnected(ConnectIOContext& io);
+    WSARet _OnWrite(WriteIOContext& io);
+    WSARet _OnConnect(ConnectIOContext& io);
 
 
 public:

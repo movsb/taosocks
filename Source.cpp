@@ -40,13 +40,13 @@ int main()
     iocp.Attach(&server);
     iocp.Attach(&pktmgr.GetClient());
 
-    server.OnAccepted([&](ClientSocket* client) {
+    server.OnAccept([&](ClientSocket* client) {
         iocp.Attach(client);
         LogLog("新的浏览器连接：fd=%d", client->GetDescriptor());
         auto ss = new SocksServer(pktmgr, client);
-        ss->OnSucceeded([&](SocksServer::ConnectionInfo& info) {
+        ss->OnSucceed = [&](SocksServer::ConnectionInfo& info) {
             auto rc = new ClientRelayClient(&pktmgr, info.client, info.sfd);
-        });
+        };
     });
 
     pktmgr.StartActive();

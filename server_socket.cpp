@@ -22,7 +22,7 @@ void ServerSocket::Start(ULONG ip, USHORT port)
     }
 }
 
-void ServerSocket::OnAccepted(std::function<void(ClientSocket*)> onAccepted)
+void ServerSocket::OnAccept(std::function<void(ClientSocket*)> onAccepted)
 {
     _onAccepted = onAccepted;
 }

@@ -14,17 +14,17 @@ void ClientSocket::OnRead(OnReadT onRead)
 {
     _onRead = onRead;
 }
-void ClientSocket::OnWritten(OnWrittenT onWritten)
+void ClientSocket::OnWrite(OnWriteT onWrite)
 {
-    _onWritten = onWritten;
+    _onWrite = onWrite;
 }
-void ClientSocket::OnClosed(OnClosedT onClose)
+void ClientSocket::OnClose(OnCloseT onClose)
 {
-    _onClosed = onClose;
+    _onClose = onClose;
 }
-void ClientSocket::OnConnected(OnConnectedT onConnected)
+void ClientSocket::OnConnect(OnConnectT onConnect)
 {
-    _onConnected = onConnected;
+    _onConnect = onConnect;
 }
 WSARet ClientSocket::Connect(in_addr& addr, unsigned short port)
 {
@@ -113,7 +113,7 @@ void ClientSocket::_OnRead(ReadIOContext& io)
         }
     }
 }
-WSARet ClientSocket::_OnWritten(WriteIOContext& io)
+WSARet ClientSocket::_OnWrite(WriteIOContext& io)
 {
     DWORD dwBytes = 0;
     WSARet ret = io.GetResult(_fd, &dwBytes);
@@ -129,7 +129,7 @@ WSARet ClientSocket::_OnWritten(WriteIOContext& io)
 
     return ret;
 }
-WSARet ClientSocket::_OnConnected(ConnectIOContext& io)
+WSARet ClientSocket::_OnConnect(ConnectIOContext& io)
 {
     WSARet ret = io.GetResult(_fd);
     if(ret.Succ()) {
@@ -155,19 +155,19 @@ void ClientSocket::OnDispatch(BaseDispatchData & data)
     case OpType::Write:
     {
         auto d = static_cast<WriteDispatchData&>(data);
-        _onWritten(this, d.size);
+        _onWrite(this, d.size);
         break;
     }
     case OpType::Close:
     {
         auto d = static_cast<CloseDispatchData&>(data);
-        _onClosed(this);
+        _onClose(this);
         break;
     }
     case OpType::Connect:
     {
         auto d = static_cast<ConnectDispatchData&>(data);
-        _onConnected(this);
+        _onConnect(this);
         break;
     }
     }
@@ -179,10 +179,10 @@ void ClientSocket::OnTask(BaseIOContext& bio)
         _OnRead(static_cast<ReadIOContext&>(bio));
     }
     else if(bio.optype == OpType::Write) {
-        _OnWritten(static_cast<WriteIOContext&>(bio));
+        _OnWrite(static_cast<WriteIOContext&>(bio));
     }
     else if(bio.optype == OpType::Connect) {
-        _OnConnected(static_cast<ConnectIOContext&>(bio));
+        _OnConnect(static_cast<ConnectIOContext&>(bio));
     }
 }
 

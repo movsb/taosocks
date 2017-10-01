@@ -86,7 +86,7 @@ public:
     
     void Start(ULONG ip, USHORT port);
 
-    void OnAccepted(std::function<void(ClientSocket*)> onAccepted);
+    void OnAccept(std::function<void(ClientSocket*)> onAccepted);
 
     ClientSocket* _OnAccepted(AcceptIOContext& io);
 

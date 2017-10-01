@@ -9,10 +9,10 @@
 
 namespace taosocks {
 
-class NewRelayHandler : public IPacketHandler
+class ConnectionHandler : public IPacketHandler
 {
 public:
-    NewRelayHandler(IBasePacketManager* pktmgr)
+    ConnectionHandler(IBasePacketManager* pktmgr)
         : _pktmgr(pktmgr)
     {
 
