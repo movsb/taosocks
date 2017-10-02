@@ -12,14 +12,14 @@ namespace taosocks {
 class ConnectionHandler : public IPacketHandler
 {
 public:
-    ConnectionHandler(IBasePacketManager* pktmgr)
+    ConnectionHandler(ServerPacketManager* pktmgr)
         : _pktmgr(pktmgr)
     {
 
     }
 
 private:
-    IBasePacketManager* _pktmgr;
+    ServerPacketManager* _pktmgr;
     int _cfd;
     GUID _guid;
 
@@ -41,11 +41,11 @@ public:
 class ClientRelayClient : public IPacketHandler
 {
 public:
-    ClientRelayClient(IBasePacketManager* pktmgr, ClientSocket* client, int sfd);
+    ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* client, int sfd);
 
 private:
     ClientSocket* _client;
-    IBasePacketManager* _pktmgr;
+    ClientPacketManager* _pktmgr;
     int _sfd;
 
     // Inherited via IPacketHandler
@@ -56,11 +56,11 @@ private:
 class ServerRelayClient : public IPacketHandler
 {
 public:
-    ServerRelayClient(IBasePacketManager* pktmgr, ClientSocket* client, int cfd, GUID guid);
+    ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* client, int cfd, GUID guid);
 
 private:
     ClientSocket* _client;
-    IBasePacketManager* _pktmgr;
+    ServerPacketManager* _pktmgr;
     int _cfd;
     GUID _guid;
 

@@ -209,6 +209,7 @@ void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
 
     auto ret = _client->Write(data.data(), data.size(), nullptr);
     LogLog("SocksÓ¦´ð×´Ì¬£º%d,%d", ret.Succ(), ret.Code());
+    assert(ret.Succ());
 
     if(pkt->code == 0) {
 

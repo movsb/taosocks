@@ -5,7 +5,7 @@
 
 namespace taosocks {
 
-ClientRelayClient::ClientRelayClient(IBasePacketManager* pktmgr, ClientSocket* client, int sfd)
+ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* client, int sfd)
     : _pktmgr(pktmgr)
     , _client(client)
     , _sfd(sfd)
@@ -42,7 +42,7 @@ void ClientRelayClient::OnPacket(BasePacket * packet)
 
 //////////////////////////////////////////////////////////////////////////
 
-ServerRelayClient::ServerRelayClient(IBasePacketManager* pktmgr, ClientSocket* client, int cfd, GUID guid)
+ServerRelayClient::ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* client, int cfd, GUID guid)
     : _pktmgr(pktmgr)
     , _client(client)
     , _cfd(cfd)

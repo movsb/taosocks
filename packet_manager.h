@@ -66,15 +66,7 @@ struct IPacketHandler
     virtual void OnPacket(BasePacket* packet) = 0;
 };
 
-struct IBasePacketManager
-{
-public:
-    virtual void Send(BasePacket* pkt) = 0;
-    virtual void AddHandler(IPacketHandler* handler) = 0;
-    virtual void RemoveHandler(IPacketHandler* handler) = 0;
-};
-
-class ClientPacketManager : public IBasePacketManager
+class ClientPacketManager
 {
 public:
     ClientPacketManager(Dispatcher& disp);
@@ -83,15 +75,15 @@ public:
 
     ClientSocket& GetClient() { return _client; }
 
-    virtual void Send(BasePacket* pkt) override;
+    void Send(BasePacket* pkt);
 
-    virtual void AddHandler(IPacketHandler* handler) override
+    void AddHandler(IPacketHandler* handler)
     {
         assert(_handlers.find(handler->GetDescriptor()) == _handlers.cend());
         _handlers[handler->GetDescriptor()] = handler;
     }
 
-    virtual void RemoveHandler(IPacketHandler* handler) override
+    void RemoveHandler(IPacketHandler* handler)
     {
         assert(_handlers.find(handler->GetDescriptor()) != _handlers.cend());
         _handlers.erase(handler->GetDescriptor());
@@ -122,22 +114,22 @@ struct GUIDLessComparer {
     }
 };
 
-class ServerPacketManager : public IBasePacketManager
+class ServerPacketManager
 {
 public:
     ServerPacketManager(Dispatcher& disp);
 
     void StartPassive();
 
-    virtual void Send(BasePacket* pkt) override;
+    void Send(BasePacket* pkt);
 
-    virtual void AddHandler(IPacketHandler* handler) override
+    void AddHandler(IPacketHandler* handler)
     {
         assert(_handlers.find(handler->GetDescriptor()) == _handlers.cend());
         _handlers[handler->GetDescriptor()] = handler;
     }
 
-    virtual void RemoveHandler(IPacketHandler* handler) override
+    void RemoveHandler(IPacketHandler* handler)
     {
         assert(_handlers.find(handler->GetDescriptor()) != _handlers.cend());
         _handlers.erase(handler->GetDescriptor());
