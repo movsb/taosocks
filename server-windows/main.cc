@@ -48,9 +48,13 @@ int main()
         return c;
     };
 
-    newrelay.OnSucceeded = [&](ClientSocket* client, int cfd, GUID guid) {
+    newrelay.OnSucceed = [&](ClientSocket* client, int cfd, GUID guid) {
         auto rc = new ServerRelayClient(&pktmgr, client, cfd, guid);
         pktmgr.AddHandler(rc);
+    };
+
+    newrelay.OnError = [&](ClientSocket* client) {
+        client->Close();
     };
 
     pktmgr.StartPassive();

@@ -16,6 +16,7 @@ struct Command {
     enum Value {
         __Beg,
         Connect,
+        Disconnect,
         Relay,
         __End,
     };
@@ -50,6 +51,11 @@ struct RelayPacket : BasePacket
         std::memcpy(p->data, data, size);
         return p;
     }
+};
+
+struct DisconnectPacket : BasePacket
+{
+
 };
 
 #pragma pack(pop)

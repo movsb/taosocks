@@ -47,6 +47,9 @@ int main()
         ss->OnSucceed = [&](SocksServer::ConnectionInfo& info) {
             auto rc = new ClientRelayClient(&pktmgr, info.client, info.sfd);
         };
+        ss->OnError = [](const std::string& e) {
+            LogErr(e.c_str());
+        };
     });
 
     pktmgr.StartActive();

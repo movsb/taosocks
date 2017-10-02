@@ -23,7 +23,7 @@ void ClientPacketManager::StartActive()
 
     ::_beginthreadex(nullptr, 0, __ThreadProc, this, 0, nullptr);
 
-    _client.OnConnect([this](ClientSocket*) {
+    _client.OnConnect([this](ClientSocket*, bool connected) {
         LogLog("已连接到服务端");
         _connected = true;
     });
@@ -37,7 +37,7 @@ void ClientPacketManager::StartActive()
         LogLog("发送数据 size=%d", size);
     });
 
-    _client.OnClose([this](ClientSocket*){
+    _client.OnClose([this](ClientSocket*, CloseReason::Value reason){
         LogLog("连接已关闭");
     });
 
@@ -135,6 +135,25 @@ void ServerPacketManager::AddClient(ClientSocket* client)
 
     client->OnWrite([](ClientSocket* client, size_t size) {
     });
+
+    // 可能是掉线、可能是正常关闭
+    // 掉线不清理网站连接，正常关闭要清理
+    client->OnClose([this](ClientSocket*, CloseReason::Value reason) {
+        if(reason == CloseReason::Actively) {
+            LogLog("主动关闭连接（不应发生）");
+        }
+        else if(reason == CloseReason::Passively) {
+            LogLog("被动关闭连接");
+            // 清理所有此 GUID 的连接
+            // 断开此 GUID 对应cfd 的连接
+        }
+        else if(reason == CloseReason::Reset) {
+            LogLog("连接被重置");
+        }
+        else {
+            LogWrn("Bad Reason");
+        }
+    });
 }
 
 void ServerPacketManager::RemoveClient(ClientSocket* client)
@@ -151,6 +170,7 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
         auto bpkt = (BasePacket*)recv_data.data();
         if(bpkt->__cmd == PacketCommand::Connect) {
             AddClient(client);
+            client->user_datum = new GUID(bpkt->__guid);
             _clients.emplace(bpkt->__guid, client);
         }
         if((int)recv_data.size() >= bpkt->__size) {

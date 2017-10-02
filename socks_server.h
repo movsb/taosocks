@@ -43,23 +43,9 @@ struct ConnectPacket : BasePacket
 
 struct ConnectRespondPacket : BasePacket
 {
+    int code;
     unsigned long  addr;
     unsigned short port;
-    int status;
-
-    static ConnectRespondPacket* Create(unsigned long addr, unsigned short port, bool status)
-    {
-        auto p = new ConnectRespondPacket;
-        p->__size = sizeof(ConnectRespondPacket);
-        p->__cmd = PacketCommand::Connect;
-
-        p->addr = addr;
-        p->port = port;
-        p->status = status;
-
-        return p;
-    }
-
 };
 
 #pragma pack(pop)
@@ -101,7 +87,7 @@ protected:
     void finish();
 
 protected:
-    void _OnClientClose();
+    void _OnClientClose(CloseReason::Value reason);
     void _OnClientRead(unsigned char* data, size_t size);
 
 protected:

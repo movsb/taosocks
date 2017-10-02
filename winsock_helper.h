@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cassert>
+
 #include <string>
 
 #include <WinSock2.h>
@@ -123,7 +125,9 @@ public:
 		return _size;
 	}
 
-    unsigned int operator[](int index) {
+    void get(int index, unsigned int* addr, unsigned short* port) {
+        assert(index > 0 && index < (int)size() && addr != nullptr && port != nullptr);
+
 		struct addrinfo* p = _paddr;
 		while (index > 1){
 			p = p->ai_next;
@@ -131,9 +135,8 @@ public:
 		}
 
         auto inaddr = (sockaddr_in*)p->ai_addr;
-        auto port = ::ntohs(inaddr->sin_port);
-
-        return inaddr->sin_addr.S_un.S_addr;
+        *addr = inaddr->sin_addr.s_addr;
+        *port = ::ntohs(inaddr->sin_port);
 	}
 
 protected:

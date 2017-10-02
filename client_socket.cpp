@@ -5,10 +5,12 @@
 namespace taosocks {
 void ClientSocket::Close()
 {
-    flags |= Flags::Closed;
-    WSAIntRet ret = closesocket(_fd);
-    LogLog("关闭client,fd=%d,ret=%d", _fd, ret.Code());
-    assert(ret.Succ());
+    if(!(_flags & Flags::Closed)) {
+        _flags |= Flags::Closed;
+        WSAIntRet ret = closesocket(_fd);
+        LogLog("关闭client,fd=%d,ret=%d", _fd, ret.Code());
+        assert(ret.Succ());
+    }
 }
 void ClientSocket::OnRead(OnReadT onRead)
 {
@@ -100,16 +102,25 @@ void ClientSocket::_OnRead(ReadIOContext& io)
         Read();
     }
     else {
-        if(flags & Flags::Closed) {
+        if(_flags & Flags::Closed) {
             LogWrn("已主动关闭连接：fd:%d", _fd);
+            CloseDispatchData data;
+            data.reason = CloseReason::Actively;
+            Dispatch(data);
         }
         else if(ret.Succ() && dwBytes == 0) {
             LogWrn("已被动关闭连接：fd:%d", _fd);
+            Close();
             CloseDispatchData data;
+            data.reason = CloseReason::Passively;
             Dispatch(data);
         }
         else if(ret.Fail()) {
+            Close();
             LogFat("读失败：fd=%d,code:%d", _fd, ret.Code());
+            CloseDispatchData data;
+            data.reason = CloseReason::Reset;
+            Dispatch(data);
         }
     }
 }
@@ -124,7 +135,7 @@ WSARet ClientSocket::_OnWrite(WriteIOContext& io)
         Dispatch(data);
     }
     else {
-        LogFat("写失败");
+        LogFat("写失败 %d", ret.Code());
     }
 
     return ret;
@@ -161,13 +172,13 @@ void ClientSocket::OnDispatch(BaseDispatchData & data)
     case OpType::Close:
     {
         auto d = static_cast<CloseDispatchData&>(data);
-        _onClose(this);
+        _onClose(this, d.reason);
         break;
     }
     case OpType::Connect:
     {
         auto d = static_cast<ConnectDispatchData&>(data);
-        _onConnect(this);
+        _onConnect(this, true);
         break;
     }
     }

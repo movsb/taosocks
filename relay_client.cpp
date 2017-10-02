@@ -22,8 +22,8 @@ ClientRelayClient::ClientRelayClient(IBasePacketManager* pktmgr, ClientSocket* c
         LogLog("写入了 %d 字节", size);
     });
 
-    _client->OnClose([this](ClientSocket*) {
-        LogLog("浏览器或网站断开连接");
+    _client->OnClose([this](ClientSocket*, CloseReason::Value reason) {
+        LogLog("浏览器断开连接");
     });
 }
 
@@ -59,8 +59,8 @@ ServerRelayClient::ServerRelayClient(IBasePacketManager* pktmgr, ClientSocket* c
         LogLog("写入了 %d 字节", size);
     });
 
-    _client->OnClose([this](ClientSocket*) {
-        LogLog("浏览器或网站断开连接");
+    _client->OnClose([this](ClientSocket*, CloseReason::Value reason) {
+        LogLog("网站断开连接");
     });
 }
 
@@ -77,41 +77,75 @@ void ServerRelayClient::OnPacket(BasePacket * packet)
     }
 }
 
+void ConnectionHandler::_Respond(int code, int sfd, unsigned int addr, unsigned short port)
+{
+    auto p = new ConnectRespondPacket;
+
+    p->__size = sizeof(ConnectRespondPacket);
+    p->__cmd = PacketCommand::Connect;
+    p->__sfd = sfd;
+    p->__cfd = _cfd;
+    p->__guid = _guid;
+    p->addr = addr;
+    p->port = port;
+    p->code = code;
+
+    _pktmgr->Send(p);
+}
+
+void ConnectionHandler::_OnConnectPacket(ConnectPacket* pkt)
+{
+    assert(pkt->__sfd == (int)INVALID_SOCKET);
+
+    _cfd = pkt->__cfd;
+    _guid = pkt->__guid;
+
+    resolver rsv;
+    rsv.resolve(pkt->host, pkt->service);
+
+    if(rsv.size() > 0) {
+        unsigned int addr;
+        unsigned short port;
+        rsv.get(0, &addr, &port);
+        _OnResolve(addr, port);
+    }
+    else {
+        _Respond(1, GetDescriptor(), 0, 0);
+    }
+}
+
+void ConnectionHandler::_OnResolve(unsigned int addr, unsigned short port)
+{
+    auto c = OnCreateClient();
+
+    c->OnConnect([this, c, addr, port](ClientSocket*, bool connected) {
+        if(connected) {
+            _Respond(0, c->GetDescriptor(), addr, port);
+            OnSucceed(c, _cfd, _guid);
+        }
+        else {
+            _Respond(1, GetDescriptor(), 0, 0);
+            OnError(c);
+        }
+    });
+
+    in_addr a;
+    a.s_addr = addr;
+    c->Connect(a, port);
+}
+
 int ConnectionHandler::GetDescriptor()
 {
     return (int)INVALID_SOCKET;
 }
 
-void ConnectionHandler::OnPacket(BasePacket * packet)
+void ConnectionHandler::OnPacket(BasePacket* packet)
 {
     if(packet->__cmd == PacketCommand::Connect) {
-        auto pkt = static_cast<ConnectPacket*>(packet);
-        resolver rsv;
-        rsv.resolve(pkt->host, pkt->service);
-        assert(rsv.size() > 0);
-
-        auto c = OnCreateClient();
-        auto ad = rsv[0];
-        auto pt = std::atoi(pkt->service);
-
-        c->OnConnect([&,c, pkt, ad, pt](ClientSocket*) {
-            auto p = new ConnectRespondPacket;
-            p->__size = sizeof(ConnectRespondPacket);
-            p->__cmd = PacketCommand::Connect;
-            p->__sfd = c->GetDescriptor();
-            p->__cfd = pkt->__cfd;
-            p->__guid = pkt->__guid;
-            p->addr = ad;
-            p->port = pt;
-            p->status = 0;
-            _pktmgr->Send(p);
-            assert(OnSucceeded);
-            OnSucceeded(c, pkt->__cfd, pkt->__guid);
-        });
-
-        in_addr addr;
-        addr.S_un.S_addr = rsv[0];
-        c->Connect(addr, pt);
+        _OnConnectPacket(static_cast<ConnectPacket*>(packet));
+    }
+    else {
+        assert(0 && "invalid packet");
     }
 }
 

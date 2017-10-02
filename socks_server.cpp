@@ -17,7 +17,7 @@ SocksServer::SocksServer(ClientPacketManager& pktmgr, ClientSocket * client)
 
     _client->OnRead([this](ClientSocket*, unsigned char* data, size_t size) { return _OnClientRead(data, size); });
     _client->OnWrite([this](ClientSocket*, size_t) {});
-    _client->OnClose([this](ClientSocket*) {return _OnClientClose(); });
+    _client->OnClose([this](ClientSocket*, CloseReason::Value reason) {return _OnClientClose(reason); });
 }
 void SocksServer::feed(const unsigned char * data, size_t size)
 {
@@ -142,9 +142,17 @@ void SocksServer::finish()
     _pktmgr.Send(p);
 }
 
-void SocksServer::_OnClientClose()
+void SocksServer::_OnClientClose(CloseReason::Value reason)
 {
-
+    if(reason = CloseReason::Actively) {
+        LogLog("主动关闭连接");
+    }
+    else if(reason == CloseReason::Passively) {
+        LogLog("浏览器断开了连接");
+    }
+    else if(reason == CloseReason::Reset) {
+        LogLog("浏览器异常断开");
+    }
 }
 
 void SocksServer::_OnClientRead(unsigned char * data, size_t size)
@@ -165,48 +173,44 @@ void SocksServer::_OnClientRead(unsigned char * data, size_t size)
 
 void SocksServer::OnPacket(BasePacket* packet)
 {
-    switch(packet->__cmd)
-    {
-    case PacketCommand::Connect:
-    {
-        auto pkt = static_cast<ConnectRespondPacket*>(packet);
-        OnConnectPacket(pkt);
-        break;
+    if(packet->__cmd == PacketCommand::Connect) {
+        OnConnectPacket(static_cast<ConnectRespondPacket*>(packet));
     }
-    default:
+    else {
         assert(0 && "invalid packet");
-        break;
     }
 }
 
 void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
 {
-    if(pkt->status == 0) {
-        std::vector<unsigned char> data;
-        data.push_back(0x00);
-        data.push_back(ConnectionStatus::Success);
+    std::vector<unsigned char> data;
+    data.push_back(0x00);
+    data.push_back(pkt->code == 0 ? ConnectionStatus::Success : ConnectionStatus::Fail);
 
-        if(_is_v4a) {
-            data.push_back(_port >> 8);
-            data.push_back(_port & 0xff);
+    if(_is_v4a) {
+        data.push_back(_port >> 8);
+        data.push_back(_port & 0xff);
 
-            auto addr = _addr.S_un.S_addr;
-            char* a = (char*)&addr;
-            data.push_back(a[0]);
-            data.push_back(a[1]);
-            data.push_back(a[2]);
-            data.push_back(a[3]);
-        }
-        else {
-            data.push_back(0);
-            data.push_back(0);
-            data.push_back(0);
-            data.push_back(0);
-            data.push_back(0);
-            data.push_back(0);
-        }
+        auto addr = _addr.S_un.S_addr;
+        char* a = (char*)&addr;
+        data.push_back(a[0]);
+        data.push_back(a[1]);
+        data.push_back(a[2]);
+        data.push_back(a[3]);
+    }
+    else {
+        data.push_back(0);
+        data.push_back(0);
+        data.push_back(0);
+        data.push_back(0);
+        data.push_back(0);
+        data.push_back(0);
+    }
 
-        _client->Write(data.data(), data.size(), nullptr);
+    auto ret = _client->Write(data.data(), data.size(), nullptr);
+    LogLog("Socks应答状态：%d,%d", ret.Succ(), ret.Code());
+
+    if(pkt->code == 0) {
 
         ConnectionInfo info;
         info.sfd = pkt->__sfd;
@@ -219,6 +223,11 @@ void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
         OnSucceed(info);
     }
     else {
+        // 应该等到socks应答数据写完再关闭
+        // 如果立即写成功，那么对方会主动关闭
+        // Read 会报告被动关闭
+        _client->Close();
+        _pktmgr.RemoveHandler(this);
         assert(OnError);
         OnError("连接失败");
     }

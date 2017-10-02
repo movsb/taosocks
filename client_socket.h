@@ -101,6 +101,13 @@ struct ConnectIOContext : BaseIOContext
 
 }
 
+struct CloseReason {
+    enum Value {
+        Actively,
+        Passively,
+        Reset,
+    };
+};
 
 class ClientSocket: public BaseSocket
 {
@@ -109,7 +116,8 @@ private:
     {
         enum Value
         {
-            Closed  = 1 << 0,
+            Closed      = 1 << 0,
+            Connected   = 1 << 1,
         };
     };
 
@@ -144,29 +152,33 @@ private:
         CloseDispatchData()
             : BaseDispatchData(OpType::Close)
         { }
+
+        CloseReason::Value reason;
     };
 
 public:
     ClientSocket(Dispatcher& disp)
         : BaseSocket(disp)
-        , flags(0)
+        , _flags(0)
     {
 
     }
 
     ClientSocket(Dispatcher& disp, SOCKET fd, const SOCKADDR_IN& local, const SOCKADDR_IN& remote)
         : BaseSocket(disp, fd)
-        , flags(0)
+        , _flags(0)
         , _local(local)
         , _remote(remote)
     {
 
     }
 
+    void* user_datum;
+
     typedef std::function<void(ClientSocket*, unsigned char*, size_t)> OnReadT;
     typedef std::function<void(ClientSocket*, size_t)> OnWriteT;
-    typedef std::function<void(ClientSocket*)> OnCloseT;
-    typedef std::function<void(ClientSocket*)> OnConnectT;
+    typedef std::function<void(ClientSocket*, CloseReason::Value reason)> OnCloseT;
+    typedef std::function<void(ClientSocket*, bool)> OnConnectT;
 
 private:
     SOCKADDR_IN _local;
@@ -175,7 +187,7 @@ private:
     OnWriteT _onWrite;
     OnCloseT _onClose;
     OnConnectT _onConnect;
-    DWORD flags;
+    DWORD _flags;
 
 
 public:
