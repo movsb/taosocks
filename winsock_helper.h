@@ -126,7 +126,7 @@ public:
 	}
 
     void get(int index, unsigned int* addr, unsigned short* port) {
-        assert(index > 0 && index < (int)size() && addr != nullptr && port != nullptr);
+        assert(index >= 0 && index < (int)size() && addr != nullptr && port != nullptr);
 
 		struct addrinfo* p = _paddr;
 		while (index > 1){
