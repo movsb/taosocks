@@ -29,12 +29,12 @@ void ClientPacketManager::StartActive()
     });
 
     _client.OnRead([this](ClientSocket* client, unsigned char* data, size_t size) {
-        LogLog("接收到数据 size=%d", size);
+        // LogLog("接收到数据 size=%d", size);
         return OnRead(client, data, size);
     });
 
     _client.OnWrite([](ClientSocket*, size_t size) {
-        LogLog("发送数据 size=%d", size);
+        // LogLog("发送数据 size=%d", size);
     });
 
     _client.OnClose([this](ClientSocket*, CloseReason::Value reason){
@@ -51,7 +51,7 @@ void ClientPacketManager::Send(BasePacket* pkt)
     assert(pkt != nullptr);
     std::memcpy(&pkt->__guid, &_guid, sizeof(GUID));
     _packets.push_back(pkt);
-    LogLog("添加一个数据包");
+    // LogLog("添加一个数据包");
 }
 
 void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
@@ -122,7 +122,7 @@ void ServerPacketManager::Send(BasePacket* pkt)
 {
     assert(pkt != nullptr);
     _lock.LockExecute([&] {
-        LogLog("添加一个数据包");
+        // LogLog("添加一个数据包");
         _packets.push_back(pkt);
     });
 }
@@ -140,12 +140,12 @@ void ServerPacketManager::AddClient(ClientSocket* client)
     // 掉线不清理网站连接，正常关闭要清理
     client->OnClose([this](ClientSocket*, CloseReason::Value reason) {
         if(reason == CloseReason::Actively) {
-            LogLog("主动关闭连接（不应发生）");
+            LogLog("主动关闭连接，网站先断开");
+            // 放在网站断开连接那儿去处理
         }
         else if(reason == CloseReason::Passively) {
             LogLog("被动关闭连接");
-            // 清理所有此 GUID 的连接
-            // 断开此 GUID 对应cfd 的连接
+
         }
         else if(reason == CloseReason::Reset) {
             LogLog("连接被重置");
@@ -161,6 +161,10 @@ void ServerPacketManager::RemoveClient(ClientSocket* client)
 
 }
 
+void ServerPacketManager::CloseLocal(const GUID & guid, int cfd)
+{
+}
+
 void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
 {
     auto& recv_data = _recv_data[client];
@@ -170,7 +174,6 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
         auto bpkt = (BasePacket*)recv_data.data();
         if(bpkt->__cmd == PacketCommand::Connect) {
             AddClient(client);
-            client->user_datum = new GUID(bpkt->__guid);
             _clients.emplace(bpkt->__guid, client);
         }
         if((int)recv_data.size() >= bpkt->__size) {

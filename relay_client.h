@@ -41,10 +41,13 @@ public:
 class ClientRelayClient : public IPacketHandler
 {
 public:
-    ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* client, int sfd);
+    ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* local, int sfd);
 
 private:
-    ClientSocket* _client;
+    void _OnRemoteDisconnect(DisconnectPacket* pkt);
+
+private:
+    ClientSocket* _local;
     ClientPacketManager* _pktmgr;
     int _sfd;
 
@@ -59,10 +62,13 @@ public:
     ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* client, int cfd, GUID guid);
 
 private:
-    ClientSocket* _client;
+    ClientSocket* _remote;
     ServerPacketManager* _pktmgr;
     int _cfd;
     GUID _guid;
+
+private:
+    void _OnRemoteClose(CloseReason::Value reason);
 
     // Inherited via IPacketHandler
     virtual int GetDescriptor() override;

@@ -50,14 +50,14 @@ std::vector<ClientSocket*> ServerSocket::_Accept()
         if(ret.Succ()) {
             auto client = _OnAccepted(*acceptio);
             clients.push_back(client);
-            LogLog("_Accept 立即完成：client fd:%d", client->GetDescriptor());
+            // LogLog("_Accept 立即完成：client fd:%d", client->GetDescriptor());
         }
         else if(ret.Fail()) {
             LogFat("_Accept 错误：code=%d", ret.Code());
             assert(0);
         }
         else if(ret.Async()) {
-            LogLog("_Accept 异步");
+            // LogLog("_Accept 异步");
             break;
         }
     }

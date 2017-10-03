@@ -138,6 +138,8 @@ public:
     void AddClient(ClientSocket* client);
     void RemoveClient(ClientSocket* client);
 
+    void CloseLocal(const GUID& guid, int cfd);
+
 protected:
     void OnRead(ClientSocket* clinet, unsigned char* data, size_t size);
 

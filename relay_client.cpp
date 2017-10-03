@@ -5,75 +5,108 @@
 
 namespace taosocks {
 
-ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* client, int sfd)
+ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* local, int sfd)
     : _pktmgr(pktmgr)
-    , _client(client)
+    , _local(local)
     , _sfd(sfd)
 {
     _pktmgr->AddHandler(this);
 
-    _client->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
-        LogLog("读取了 %d 字节", size);
-        auto p = RelayPacket::Create(_sfd, _client->GetDescriptor(), data, size);
+    _local->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
+        // LogLog("读取了 %d 字节", size);
+        auto p = RelayPacket::Create(_sfd, _local->GetDescriptor(), data, size);
         _pktmgr->Send(p);
     });
 
-    _client->OnWrite([this](ClientSocket*, size_t size) {
-        LogLog("写入了 %d 字节", size);
+    _local->OnWrite([this](ClientSocket*, size_t size) {
+        // LogLog("写入了 %d 字节", size);
     });
 
-    _client->OnClose([this](ClientSocket*, CloseReason::Value reason) {
+    _local->OnClose([this](ClientSocket*, CloseReason::Value reason) {
         LogLog("浏览器断开连接");
     });
 }
 
+// 网站主动关闭连接
+void ClientRelayClient::_OnRemoteDisconnect(DisconnectPacket * pkt)
+{
+    LogLog("收到网站关闭包：for cfd=%d", _local->GetDescriptor());
+    _local->Close();
+    _pktmgr->RemoveHandler(this);
+}
+
 int ClientRelayClient::GetDescriptor()
 {
-    return _client->GetDescriptor();
+    return _local->GetDescriptor();
 }
 
 void ClientRelayClient::OnPacket(BasePacket * packet)
 {
     if(packet->__cmd == PacketCommand::Relay) {
         auto pkt = static_cast<RelayPacket*>(packet);
-        _client->Write(pkt->data, pkt->__size - sizeof(BasePacket), nullptr);
+        _local->Write(pkt->data, pkt->__size - sizeof(BasePacket), nullptr);
+    }
+    else if(packet->__cmd == PacketCommand::Disconnect) {
+        auto pkt = static_cast<DisconnectPacket*>(packet);
     }
 }
 
 //////////////////////////////////////////////////////////////////////////
 
-ServerRelayClient::ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* client, int cfd, GUID guid)
+ServerRelayClient::ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* remote, int cfd, GUID guid)
     : _pktmgr(pktmgr)
-    , _client(client)
+    , _remote(remote)
     , _cfd(cfd)
     , _guid(guid)
 {
-    _client->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
-        LogLog("读取了 %d 字节", size);
-        auto p = RelayPacket::Create(_client->GetDescriptor(), _cfd, data, size);
+    _remote->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
+        // LogLog("读取了 %d 字节", size);
+        auto p = RelayPacket::Create(_remote->GetDescriptor(), _cfd, data, size);
         p->__guid = _guid;
         _pktmgr->Send(p);
     });
 
-    _client->OnWrite([this](ClientSocket*, size_t size) {
-        LogLog("写入了 %d 字节", size);
+    _remote->OnWrite([this](ClientSocket*, size_t size) {
+        // LogLog("写入了 %d 字节", size);
     });
 
-    _client->OnClose([this](ClientSocket*, CloseReason::Value reason) {
+    _remote->OnClose([this](ClientSocket*, CloseReason::Value reason) {
         LogLog("网站断开连接");
+        _OnRemoteClose(reason);
     });
+}
+
+void ServerRelayClient::_OnRemoteClose(CloseReason::Value reason)
+{
+    if(reason == CloseReason::Actively) {
+
+    }
+    else if(reason == CloseReason::Passively || reason == CloseReason::Reset) {
+        LogLog("网站关闭/异常断开连接");
+        _pktmgr->RemoveHandler(this);
+        _pktmgr->CloseLocal(_guid, _cfd);
+        _remote->Close();
+
+        auto pkt = new DisconnectPacket;
+        pkt->__size = sizeof(DisconnectPacket);
+        pkt->__cmd = PacketCommand::Disconnect;
+        pkt->__guid = _guid;
+        pkt->__cfd = _cfd;
+        pkt->__sfd = (int)INVALID_SOCKET;
+        _pktmgr->Send(pkt);
+   }
 }
 
 int ServerRelayClient::GetDescriptor()
 {
-    return _client->GetDescriptor();
+    return _remote->GetDescriptor();
 }
 
 void ServerRelayClient::OnPacket(BasePacket * packet)
 {
     if(packet->__cmd == PacketCommand::Relay) {
         auto pkt = static_cast<RelayPacket*>(packet);
-        _client->Write(pkt->data, pkt->__size - sizeof(BasePacket), nullptr);
+        _remote->Write(pkt->data, pkt->__size - sizeof(BasePacket), nullptr);
     }
 }
 

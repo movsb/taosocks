@@ -42,13 +42,13 @@ WSARet ClientSocket::Connect(in_addr& addr, unsigned short port)
     auto connio = new ConnectIOContext();
     auto ret = connio->Connect(_fd, sai);
     if(ret.Succ()) {
-        LogLog("连接立即成功");
+        // LogLog("连接立即成功");
     }
     else if(ret.Fail()) {
         LogFat("连接调用失败：%d", ret.Code());
     }
     else if(ret.Async()) {
-        LogLog("连接异步");
+        // LogLog("连接异步");
     }
     return ret;
 }
@@ -65,13 +65,13 @@ WSARet ClientSocket::Write(const unsigned char * data, size_t size, void * tag)
     auto writeio = new WriteIOContext();
     auto ret = writeio->Write(_fd, data, size);
     if(ret.Succ()) {
-        LogLog("写立即成功，fd=%d,size=%d", _fd, size);
+        // LogLog("写立即成功，fd=%d,size=%d", _fd, size);
     }
     else if(ret.Fail()) {
         LogFat("写错误：fd=%d,code=%d", _fd, ret.Code());
     }
     else if(ret.Async()) {
-        LogLog("写异步，fd=%d", _fd);
+        // LogLog("写异步，fd=%d", _fd);
     }
     return ret;
 }
@@ -80,13 +80,13 @@ WSARet ClientSocket::Read()
     auto readio = new ReadIOContext();
     auto ret = readio->Read(_fd);
     if(ret.Succ()) {
-        LogLog("_Read 立即成功, fd:%d", _fd);
+        // LogLog("_Read 立即成功, fd:%d", _fd);
     }
     else if(ret.Fail()) {
         LogFat("读错误：fd:%d,code=%d", _fd, ret.Code());
     }
     else if(ret.Async()) {
-        LogLog("读异步 fd:%d", _fd);
+        // LogLog("读异步 fd:%d", _fd);
     }
     return ret;
 }
