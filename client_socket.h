@@ -202,6 +202,7 @@ public:
     WSARet Write(const char* data, void* tag);
     WSARet Write(const unsigned char* data, size_t size, void* tag);
     void Close();
+    bool IsClosed() const { return _flags & Flags::Closed; }
 
 private:
     void _OnRead(ReadIOContext& io);

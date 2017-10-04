@@ -23,16 +23,30 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
     });
 
     _local->OnClose([this](ClientSocket*, CloseReason::Value reason) {
-        LogLog("浏览器断开连接");
+        LogLog("浏览器断开连接，理由：%d", reason);
+        if(reason == CloseReason::Actively) {
+
+        }
+        else if(reason == CloseReason::Passively || reason == CloseReason::Reset) {
+            _pktmgr->RemoveHandler(this);
+            auto pkt = new DisconnectPacket;
+            pkt->__size = sizeof(DisconnectPacket);
+            pkt->__cmd = PacketCommand::Disconnect;
+            pkt->__sfd = _sfd;
+            pkt->__cfd = (int)INVALID_SOCKET;
+            _pktmgr->Send(pkt);
+        }
     });
 }
 
 // 网站主动关闭连接
 void ClientRelayClient::_OnRemoteDisconnect(DisconnectPacket * pkt)
 {
-    LogLog("收到网站关闭包：for cfd=%d", _local->GetDescriptor());
-    _local->Close();
-    _pktmgr->RemoveHandler(this);
+    LogLog("收包：网站断开连接，浏览器fd=%d，浏览器当前状态：%s", _local->GetDescriptor(), _local->IsClosed() ? "已断开" : "未断开");
+    if(!_local->IsClosed()) {
+        _local->Close();
+        _pktmgr->RemoveHandler(this);
+    }
 }
 
 int ClientRelayClient::GetDescriptor()
@@ -48,6 +62,7 @@ void ClientRelayClient::OnPacket(BasePacket * packet)
     }
     else if(packet->__cmd == PacketCommand::Disconnect) {
         auto pkt = static_cast<DisconnectPacket*>(packet);
+        _OnRemoteDisconnect(pkt);
     }
 }
 
@@ -79,7 +94,7 @@ ServerRelayClient::ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* 
 void ServerRelayClient::_OnRemoteClose(CloseReason::Value reason)
 {
     if(reason == CloseReason::Actively) {
-
+        LogLog("浏览器请求断开连接");
     }
     else if(reason == CloseReason::Passively || reason == CloseReason::Reset) {
         LogLog("网站关闭/异常断开连接");
@@ -107,6 +122,11 @@ void ServerRelayClient::OnPacket(BasePacket * packet)
     if(packet->__cmd == PacketCommand::Relay) {
         auto pkt = static_cast<RelayPacket*>(packet);
         _remote->Write(pkt->data, pkt->__size - sizeof(BasePacket), nullptr);
+    }
+    else if(packet->__cmd == PacketCommand::Disconnect) {
+        LogLog("收包：浏览器断开连接");
+        _remote->Close();
+        _pktmgr->RemoveHandler(this);
     }
 }
 

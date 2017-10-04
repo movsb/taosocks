@@ -11,6 +11,7 @@ ClientPacketManager::ClientPacketManager(Dispatcher & disp)
     : _disp(disp)
     , _client(disp)
     , _connected(false)
+    , _seq(0)
 {
     LogLog("创建客户端包管理器：fd=%d\n", _client.GetDescriptor());
 }
@@ -38,7 +39,7 @@ void ClientPacketManager::StartActive()
     });
 
     _client.OnClose([this](ClientSocket*, CloseReason::Value reason){
-        LogLog("连接已关闭");
+        LogLog("与服务端断开连接");
     });
 
     in_addr addr;
@@ -50,6 +51,7 @@ void ClientPacketManager::Send(BasePacket* pkt)
 {
     assert(pkt != nullptr);
     std::memcpy(&pkt->__guid, &_guid, sizeof(GUID));
+    pkt->__seq = ++_seq;
     _packets.push_back(pkt);
     // LogLog("添加一个数据包");
 }
@@ -62,7 +64,7 @@ void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
     if(recv_data.size() >= sizeof(BasePacket)) {
         auto bpkt = (BasePacket*)recv_data.data();
         if((int)recv_data.size() >= bpkt->__size) {
-            LogLog("接收到一个数据包 cmd=%d", bpkt->__cmd);
+            LogLog("接收到一个数据包 seq=%d, cmd=%d", bpkt->__seq, bpkt->__cmd);
             auto pkt = new (new unsigned char[bpkt->__size]) BasePacket;
             std::memcpy(pkt, recv_data.data(), bpkt->__size);
             recv_data.erase(recv_data.cbegin(), recv_data.cbegin() + bpkt->__size);
@@ -89,7 +91,7 @@ unsigned int ClientPacketManager::PacketThread()
         }
 
         if(pkt != nullptr) {
-            LogLog("尝试写入一个数据包, cmd=%d", pkt->__cmd);
+            LogLog("尝试写入一个数据包, seq=%d, cmd=%d", pkt->__seq, pkt->__cmd);
             _client.Write((char*)pkt, pkt->__size, nullptr);
         }
         else {
@@ -109,6 +111,7 @@ unsigned int ClientPacketManager::__ThreadProc(void * that)
 
 ServerPacketManager::ServerPacketManager(Dispatcher & disp)
     : _disp(disp)
+    , _seq(0)
 {
 }
 
@@ -121,6 +124,7 @@ void ServerPacketManager::StartPassive()
 void ServerPacketManager::Send(BasePacket* pkt)
 {
     assert(pkt != nullptr);
+    pkt->__seq = ++_seq;
     _lock.LockExecute([&] {
         // LogLog("添加一个数据包");
         _packets.push_back(pkt);
@@ -177,13 +181,18 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
             _clients.emplace(bpkt->__guid, client);
         }
         if((int)recv_data.size() >= bpkt->__size) {
-            LogLog("收到一个数据包，来自fd=%d, cmd=%d", client->GetDescriptor(), bpkt->__cmd);
+            LogLog("收到一个数据包，来自fd=%d, seq=%d, cmd=%d", client->GetDescriptor(), bpkt->__seq, bpkt->__cmd);
             auto pkt = new (new unsigned char[bpkt->__size]) BasePacket;
             std::memcpy(pkt, recv_data.data(), bpkt->__size);
             recv_data.erase(recv_data.cbegin(), recv_data.cbegin() + bpkt->__size);
             auto handler = _handlers.find(pkt->__sfd);
-            assert(handler != _handlers.cend());
-            handler->second->OnPacket(pkt);
+            if(pkt->__cmd == PacketCommand::Disconnect && handler == _handlers.cend()) {
+                LogLog("收到断开连接包，但是网站早已断开连接");
+            }
+            else {
+                assert(handler != _handlers.cend());
+                handler->second->OnPacket(pkt);
+            }
         }
     }
 }
@@ -208,7 +217,7 @@ unsigned int ServerPacketManager::PacketThread()
             for(auto it = range.first; it != range.second; ++it) {
                 auto client = it->second;
                 client->Write((char*)pkt, pkt->__size, nullptr);
-                LogLog("发送一个数据包：fd=%d, cmd=%d", client->GetDescriptor(), pkt->__cmd);
+                LogLog("发送一个数据包：fd=%d, seq=%d, cmd=%d", client->GetDescriptor(), pkt->__seq, pkt->__cmd);
                 break;
             }
         }

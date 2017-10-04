@@ -29,11 +29,12 @@ typedef packet_manager::Command PacketCommand;
 
 struct  BasePacket
 {
-    int  __size;
-    GUID __guid;
-    int  __cmd;
-    int  __sfd;
-    int  __cfd;
+    int             __size;
+    GUID            __guid;
+    unsigned int    __seq;
+    int             __cmd;
+    int             __sfd;
+    int             __cfd;
 };
 
 struct RelayPacket : BasePacket
@@ -97,6 +98,7 @@ protected:
     static unsigned int __stdcall __ThreadProc(void* that);
 
 private:
+    unsigned int _seq;
     bool _connected;
     GUID _guid;
     std::map<int, IPacketHandler*> _handlers;
@@ -148,6 +150,7 @@ protected:
     static unsigned int __stdcall __ThreadProc(void* that);
 
 private:
+    unsigned int _seq;
     std::map<int, IPacketHandler*> _handlers;
     std::list<BasePacket*> _packets;
     std::map<ClientSocket*, std::vector<unsigned char>> _recv_data;
