@@ -59,9 +59,9 @@ void ClientPacketManager::Send(BasePacket* pkt)
 void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
 {
     auto& recv_data = _recv_data;
-
     recv_data.insert(recv_data.cend(), data, data + size);
-    if(recv_data.size() >= sizeof(BasePacket)) {
+
+    while(recv_data.size() >= sizeof(BasePacket)) {
         auto bpkt = (BasePacket*)recv_data.data();
         if((int)recv_data.size() >= bpkt->__size) {
             LogLog("接收到一个数据包 seq=%d, cmd=%d", bpkt->__seq, bpkt->__cmd);
@@ -71,6 +71,9 @@ void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
             auto handler = _handlers.find(pkt->__cfd);
             assert(handler != _handlers.cend());
             handler->second->OnPacket(pkt);
+        }
+        else {
+            break;
         }
     }
 }
@@ -174,7 +177,8 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
     auto& recv_data = _recv_data[client];
 
     recv_data.insert(recv_data.cend(), data, data + size);
-    if(recv_data.size() >= sizeof(BasePacket)) {
+
+    while(recv_data.size() >= sizeof(BasePacket)) {
         auto bpkt = (BasePacket*)recv_data.data();
         if(bpkt->__cmd == PacketCommand::Connect) {
             AddClient(client);
@@ -193,6 +197,9 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
                 assert(handler != _handlers.cend());
                 handler->second->OnPacket(pkt);
             }
+        }
+        else {
+            break;
         }
     }
 }
