@@ -21,16 +21,13 @@ SocksServer::SocksServer(ClientPacketManager& pktmgr, ClientSocket * client)
 }
 void SocksServer::feed(const unsigned char * data, size_t size)
 {
-    _recv.insert(_recv.cend(), data, data + size);
+    _recv.append(data, size);
 
-    auto& D = _recv;
-
-    while(!D.empty()) {
+    while(_recv.size() > 0) {
         switch(_phrase) {
         case Phrase::Init:
         {
-            _ver = (SocksVersion::Value)D[0];
-            D.erase(D.begin());
+            _ver = (SocksVersion::Value)_recv.get_byte();
 
             if(_ver != SocksVersion::v4) {
                 throw "Bad socks version.";
@@ -41,8 +38,7 @@ void SocksServer::feed(const unsigned char * data, size_t size)
         }
         case Phrase::Command:
         {
-            auto cmd = (SocksCommand::Value)D[0];
-            D.erase(D.begin());
+            auto cmd = (SocksCommand::Value)_recv.get_byte();
 
             if(cmd != SocksCommand::Stream) {
                 throw "Not supported socks command.";
@@ -53,43 +49,35 @@ void SocksServer::feed(const unsigned char * data, size_t size)
         }
         case Phrase::Port:
         {
-            if(D.size() < 2) {
+            if(_recv.size() < 2) {
                 return;
             }
 
-            unsigned short port_net = D[0] + (D[1] << 8);
-            D.erase(D.begin(), D.begin() + 2);
-            _port = ::ntohs(port_net);
+            _port= ::ntohs(_recv.get_short());
 
             _phrase = Phrase::Addr;
             break;
         }
         case Phrase::Addr:
         {
-            if(D.size() < 4) {
+            if(_recv.size() < 4) {
                 return;
             }
 
-            _addr.S_un.S_un_b.s_b1 = D[0];
-            _addr.S_un.S_un_b.s_b2 = D[1];
-            _addr.S_un.S_un_b.s_b3 = D[2];
-            _addr.S_un.S_un_b.s_b4 = D[3];
-            D.erase(D.begin(), D.begin() + 4);
+            _addr.s_addr = _recv.get_int();
 
             _phrase = Phrase::User;
             break;
         }
         case Phrase::User:
         {
-            auto term = std::find_if(D.cbegin(), D.cend(), [](const unsigned char& c) {
-                return c == '\0';
-            });
+            auto index = _recv.index_char('\0');
 
-            if(term == D.cend()) {
+            if(index == -1) {
                 return;
             }
 
-            D.erase(D.begin(), term + 1);
+            _recv.get_string(index + 1);
 
             _is_v4a = _addr.S_un.S_un_b.s_b1 == 0
                 && _addr.S_un.S_un_b.s_b2 == 0
@@ -102,17 +90,13 @@ void SocksServer::feed(const unsigned char * data, size_t size)
         }
         case Phrase::Domain:
         {
-            auto term = std::find_if(D.cbegin(), D.cend(), [](const unsigned char& c) {
-                return c == '\0';
-            });
+            auto index = _recv.index_char('\0');
 
-            if(term == D.cend()) {
+            if(index == -1) {
                 return;
             }
 
-            _domain = (char*)&D[0];
-
-            D.erase(D.begin(), term + 1);
+            _domain = _recv.get_string(index + 1);
 
             _phrase = Phrase::Finish;
 
@@ -165,7 +149,7 @@ void SocksServer::_OnClientRead(unsigned char * data, size_t size)
     }
 
     if(_phrase == Phrase::Finish) {
-        assert(_recv.empty());
+        assert(_recv.size() == 0);
         LogLog("解析完成");
         finish();
     }
@@ -183,31 +167,31 @@ void SocksServer::OnPacket(BasePacket* packet)
 
 void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
 {
-    std::vector<unsigned char> data;
-    data.push_back(0x00);
-    data.push_back(pkt->code == 0 ? ConnectionStatus::Success : ConnectionStatus::Fail);
+    DataWindow data;
+    data.append(0x00);
+    data.append(pkt->code == 0 ? ConnectionStatus::Success : ConnectionStatus::Fail);
 
     if(_is_v4a) {
-        data.push_back(_port >> 8);
-        data.push_back(_port & 0xff);
+        data.append(_port >> 8);
+        data.append(_port & 0xff);
 
         auto addr = _addr.S_un.S_addr;
         char* a = (char*)&addr;
-        data.push_back(a[0]);
-        data.push_back(a[1]);
-        data.push_back(a[2]);
-        data.push_back(a[3]);
+        data.append(a[0]);
+        data.append(a[1]);
+        data.append(a[2]);
+        data.append(a[3]);
     }
     else {
-        data.push_back(0);
-        data.push_back(0);
-        data.push_back(0);
-        data.push_back(0);
-        data.push_back(0);
-        data.push_back(0);
+        data.append(0);
+        data.append(0);
+        data.append(0);
+        data.append(0);
+        data.append(0);
+        data.append(0);
     }
 
-    auto ret = _client->Write(data.data(), data.size(), nullptr);
+    auto ret = _client->Write((char*)data.data(), data.size(), nullptr);
     LogLog("Socks应答状态：%d,%d", ret.Succ(), ret.Code());
     assert(ret.Succ());
 

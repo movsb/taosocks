@@ -1,11 +1,15 @@
+#pragma once
+
 #include <cassert>
 #include <cstring>
 #include <string>
 
+namespace taosocks {
+
 class DataWindow
 {
 public:
-    DataWindow(size_t size)
+    DataWindow(size_t size = 1024)
         : _dat(nullptr)
         , _cap(size)
         , _beg(0)
@@ -16,7 +20,12 @@ public:
     }
 
 public:
-    void append(const unsigned char* const data, size_t size)
+    void append(unsigned char c)
+    {
+        return append(&c, sizeof(c));
+    }
+
+    void append(const void* data, size_t size)
     {
         ensure_capacity(size);
         std::memcpy(_dat + _end, data, size);
@@ -32,6 +41,18 @@ public:
     {
         _beg = 0;
         _end = 0;
+    }
+
+    void get(void* p, size_t n)
+    {
+        check_size(0, n);
+        std::memcpy(p, _dat + _beg, n);
+        _beg += n;
+    }
+
+    void* data() const
+    {
+        return _dat + _beg;
     }
 
     unsigned char get_byte()
@@ -89,10 +110,16 @@ public:
     template<typename T>
     T* try_cast()
     {
-        if(size() >= sizeof(T))
-            return reinterpret_cast<T*>(_dat + _beg);
-        else
-            return nullptr;
+        return size() >= sizeof(T)
+            ? reinterpret_cast<T*>(_dat + _beg)
+            : nullptr
+            ;
+    }
+
+    template<typename T>
+    T* get_obj()
+    {
+        return __get<T>(0, true);
     }
 
 private:
@@ -151,6 +178,7 @@ private:
     unsigned char* _dat;
 };
 
+/*
 int main()
 {
     DataWindow dw(16);
@@ -183,3 +211,7 @@ int main()
 
     dw.append((unsigned char*)"01234567890123456789123", 23);
 }
+*/
+
+}
+

@@ -6,6 +6,7 @@
 #include <vector>
 #include <algorithm>
 
+#include "data_window.hpp"
 #include "client_socket.h"
 #include "thread_dispatcher.h"
 
@@ -103,7 +104,7 @@ private:
     GUID _guid;
     std::map<int, IPacketHandler*> _handlers;
     std::list<BasePacket*> _packets;
-    std::vector<unsigned char> _recv_data;
+    DataWindow _recv_data;
     Dispatcher& _disp;
     ClientSocket _client;
     threading::Locker _lock;
@@ -153,7 +154,7 @@ private:
     unsigned int _seq;
     std::map<int, IPacketHandler*> _handlers;
     std::list<BasePacket*> _packets;
-    std::map<ClientSocket*, std::vector<unsigned char>> _recv_data;
+    std::map<ClientSocket*, DataWindow> _recv_data;
     Dispatcher& _disp;
     std::multimap<GUID, ClientSocket*, GUIDLessComparer> _clients;
     threading::Locker _lock;

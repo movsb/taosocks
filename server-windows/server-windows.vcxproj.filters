@@ -74,5 +74,8 @@
     <ClInclude Include="..\relay_client.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\data_window.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

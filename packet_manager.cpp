@@ -59,22 +59,15 @@ void ClientPacketManager::Send(BasePacket* pkt)
 void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
 {
     auto& recv_data = _recv_data;
-    recv_data.insert(recv_data.cend(), data, data + size);
+    recv_data.append(data, size);
 
-    while(recv_data.size() >= sizeof(BasePacket)) {
-        auto bpkt = (BasePacket*)recv_data.data();
-        if((int)recv_data.size() >= bpkt->__size) {
-            LogLog("接收到一个数据包 seq=%d, cmd=%d", bpkt->__seq, bpkt->__cmd);
-            auto pkt = new (new unsigned char[bpkt->__size]) BasePacket;
-            std::memcpy(pkt, recv_data.data(), bpkt->__size);
-            recv_data.erase(recv_data.cbegin(), recv_data.cbegin() + bpkt->__size);
-            auto handler = _handlers.find(pkt->__cfd);
-            assert(handler != _handlers.cend());
-            handler->second->OnPacket(pkt);
-        }
-        else {
-            break;
-        }
+    for(BasePacket* bpkt; (bpkt = recv_data.try_cast<BasePacket>()) != nullptr && (int)recv_data.size() >= bpkt->__size;) {
+        LogLog("接收到一个数据包 seq=%d, cmd=%d", bpkt->__seq, bpkt->__cmd);
+        auto pkt = new (new char[bpkt->__size]) BasePacket;
+        recv_data.get(pkt, bpkt->__size);
+        auto handler = _handlers.find(pkt->__cfd);
+        assert(handler != _handlers.cend());
+        handler->second->OnPacket(pkt);
     }
 }
 
@@ -175,31 +168,25 @@ void ServerPacketManager::CloseLocal(const GUID & guid, int cfd)
 void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
 {
     auto& recv_data = _recv_data[client];
+    recv_data.append(data, size);
 
-    recv_data.insert(recv_data.cend(), data, data + size);
-
-    while(recv_data.size() >= sizeof(BasePacket)) {
-        auto bpkt = (BasePacket*)recv_data.data();
+    for(BasePacket* bpkt; (bpkt = recv_data.try_cast<BasePacket>()) != nullptr && (int)recv_data.size() >= bpkt->__size;) {
         if(bpkt->__cmd == PacketCommand::Connect) {
             AddClient(client);
             _clients.emplace(bpkt->__guid, client);
         }
-        if((int)recv_data.size() >= bpkt->__size) {
-            LogLog("收到一个数据包，来自fd=%d, seq=%d, cmd=%d", client->GetDescriptor(), bpkt->__seq, bpkt->__cmd);
-            auto pkt = new (new unsigned char[bpkt->__size]) BasePacket;
-            std::memcpy(pkt, recv_data.data(), bpkt->__size);
-            recv_data.erase(recv_data.cbegin(), recv_data.cbegin() + bpkt->__size);
-            auto handler = _handlers.find(pkt->__sfd);
-            if(pkt->__cmd == PacketCommand::Disconnect && handler == _handlers.cend()) {
-                LogLog("收到断开连接包，但是网站早已断开连接");
-            }
-            else {
-                assert(handler != _handlers.cend());
-                handler->second->OnPacket(pkt);
-            }
+
+        LogLog("收到一个数据包，来自fd=%d, seq=%d, cmd=%d", client->GetDescriptor(), bpkt->__seq, bpkt->__cmd);
+
+        auto pkt = new (new char[bpkt->__size]) BasePacket;
+        recv_data.get(pkt, bpkt->__size);
+        auto handler = _handlers.find(pkt->__sfd);
+        if(pkt->__cmd == PacketCommand::Disconnect && handler == _handlers.cend()) {
+            LogLog("收到断开连接包，但是网站早已断开连接");
         }
         else {
-            break;
+            assert(handler != _handlers.cend());
+            handler->second->OnPacket(pkt);
         }
     }
 }

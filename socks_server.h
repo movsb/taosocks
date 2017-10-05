@@ -3,6 +3,7 @@
 #include <vector>
 #include <exception>
 
+#include "data_window.hpp"
 #include "client_socket.h"
 #include "packet_manager.h"
 
@@ -96,7 +97,7 @@ protected:
     bool _is_v4a;
     Phrase::Value _phrase;
     ClientSocket* _client;
-    std::vector<unsigned char> _recv;
+    DataWindow _recv;
     unsigned short _port;
     in_addr _addr;
     std::string _domain;

@@ -165,6 +165,7 @@
   <ItemGroup>
     <ClInclude Include="base_socket.h" />
     <ClInclude Include="client_socket.h" />
+    <ClInclude Include="data_window.hpp" />
     <ClInclude Include="iocp_model.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="packet_manager.h" />
