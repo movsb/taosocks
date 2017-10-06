@@ -62,7 +62,7 @@ void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
     recv_data.append(data, size);
 
     for(BasePacket* bpkt; (bpkt = recv_data.try_cast<BasePacket>()) != nullptr && (int)recv_data.size() >= bpkt->__size;) {
-        LogLog("接收到一个数据包 seq=%d, cmd=%d", bpkt->__seq, bpkt->__cmd);
+        LogLog("收到数据包 seq=%d, cmd=%d, size=%d", bpkt->__seq, bpkt->__cmd, bpkt->__size);
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
         auto handler = _handlers.find(pkt->__cfd);
@@ -87,7 +87,7 @@ unsigned int ClientPacketManager::PacketThread()
         }
 
         if(pkt != nullptr) {
-            LogLog("尝试写入一个数据包, seq=%d, cmd=%d", pkt->__seq, pkt->__cmd);
+            LogLog("发送数据包, seq=%d, cmd=%d, size=%d", pkt->__seq, pkt->__cmd, pkt->__size);
             _client.Write((char*)pkt, pkt->__size, nullptr);
         }
         else {
@@ -176,7 +176,7 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
             _clients.emplace(bpkt->__guid, client);
         }
 
-        LogLog("收到一个数据包，来自fd=%d, seq=%d, cmd=%d", client->GetDescriptor(), bpkt->__seq, bpkt->__cmd);
+        LogLog("收到数据包，来自fd=%d, seq=%d, cmd=%d, size=%d", client->GetDescriptor(), bpkt->__seq, bpkt->__cmd, bpkt->__size);
 
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
@@ -211,7 +211,7 @@ unsigned int ServerPacketManager::PacketThread()
             for(auto it = range.first; it != range.second; ++it) {
                 auto client = it->second;
                 client->Write((char*)pkt, pkt->__size, nullptr);
-                LogLog("发送一个数据包：fd=%d, seq=%d, cmd=%d", client->GetDescriptor(), pkt->__seq, pkt->__cmd);
+                LogLog("发送数据包：fd=%d, seq=%d, cmd=%d, size=%d", client->GetDescriptor(), pkt->__seq, pkt->__cmd, pkt->__size);
                 break;
             }
         }
