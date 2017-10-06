@@ -66,8 +66,13 @@ void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
         auto handler = _handlers.find(pkt->__cfd);
-        assert(handler != _handlers.cend());
-        handler->second->OnPacket(pkt);
+        if(pkt->__cmd == PacketCommand::Disconnect && handler == _handlers.cend()) {
+            LogLog("收到断开连接包，但是浏览器早已断开连接");
+        }
+        else {
+            assert(handler != _handlers.cend());
+            handler->second->OnPacket(pkt);
+        }
     }
 }
 

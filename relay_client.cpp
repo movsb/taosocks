@@ -47,6 +47,9 @@ void ClientRelayClient::_OnRemoteDisconnect(DisconnectPacket * pkt)
         _local->Close();
         _pktmgr->RemoveHandler(this);
     }
+    else {
+        LogLog("ÒÑ¹Ø±Õ");
+    }
 }
 
 int ClientRelayClient::GetDescriptor()

@@ -113,13 +113,11 @@ void ClientSocket::_OnRead(ReadIOContext& io)
         }
         else if(ret.Succ() && dwBytes == 0) {
             LogWrn("已被动关闭连接：fd:%d", _fd);
-            Close();
             CloseDispatchData data;
             data.reason = CloseReason::Passively;
             Dispatch(data);
         }
         else if(ret.Fail()) {
-            Close();
             LogFat("读失败：fd=%d,code:%d", _fd, ret.Code());
             CloseDispatchData data;
             data.reason = CloseReason::Reset;
@@ -174,8 +172,21 @@ void ClientSocket::OnDispatch(BaseDispatchData & data)
     }
     case OpType::Close:
     {
+        // 进入主线程前可能没关闭
+        // 但进入后就不一定了
+        // 比如正在处理远端关闭的时候遇到关闭
+        // 进入后就已经是被关闭状态
+        auto closed = IsClosed();
         auto d = static_cast<CloseDispatchData&>(data);
-        _onClose(this, d.reason);
+        if(d.reason != CloseReason::Actively) {
+            if(!closed) {
+                Close();
+            }
+        }
+        // 这里也同理
+        if(!closed) {
+            _onClose(this, d.reason);
+        }
         break;
     }
     case OpType::Connect:

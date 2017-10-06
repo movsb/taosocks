@@ -65,6 +65,7 @@ protected:
 
 protected:
     HWND _hwnd;
+    Locker _lock;
 };
 
 }
