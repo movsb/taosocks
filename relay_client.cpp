@@ -52,7 +52,7 @@ void ClientRelayClient::_OnRemoteDisconnect(DisconnectPacket * pkt)
     }
 }
 
-int ClientRelayClient::GetDescriptor()
+int ClientRelayClient::GetId()
 {
     return _local->GetSocket();
 }
@@ -115,7 +115,7 @@ void ServerRelayClient::_OnRemoteClose(CloseReason::Value reason)
    }
 }
 
-int ServerRelayClient::GetDescriptor()
+int ServerRelayClient::GetId()
 {
     return _remote->GetSocket();
 }
@@ -168,7 +168,7 @@ void ConnectionHandler::_OnConnectPacket(ConnectPacket* pkt)
         _OnResolve(addr, port);
     }
     else {
-        _Respond(1, GetDescriptor(), 0, 0);
+        _Respond(1, GetId(), 0, 0);
     }
 }
 
@@ -182,7 +182,7 @@ void ConnectionHandler::_OnResolve(unsigned int addr, unsigned short port)
             OnSucceed(c, _cfd, _guid);
         }
         else {
-            _Respond(1, GetDescriptor(), 0, 0);
+            _Respond(1, GetId(), 0, 0);
             OnError(c);
         }
     });
@@ -192,7 +192,7 @@ void ConnectionHandler::_OnResolve(unsigned int addr, unsigned short port)
     c->Connect(a, port);
 }
 
-int ConnectionHandler::GetDescriptor()
+int ConnectionHandler::GetId()
 {
     return (int)INVALID_SOCKET;
 }

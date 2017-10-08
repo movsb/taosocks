@@ -64,7 +64,7 @@ struct DisconnectPacket : BasePacket
 
 struct IPacketHandler
 {
-    virtual int GetDescriptor() = 0;
+    virtual int GetId() = 0;
     virtual void OnPacket(BasePacket* packet) = 0;
 };
 
@@ -81,14 +81,14 @@ public:
 
     void AddHandler(IPacketHandler* handler)
     {
-        assert(_handlers.find(handler->GetDescriptor()) == _handlers.cend());
-        _handlers[handler->GetDescriptor()] = handler;
+        assert(_handlers.find(handler->GetId()) == _handlers.cend());
+        _handlers[handler->GetId()] = handler;
     }
 
     void RemoveHandler(IPacketHandler* handler)
     {
-        assert(_handlers.find(handler->GetDescriptor()) != _handlers.cend());
-        _handlers.erase(handler->GetDescriptor());
+        assert(_handlers.find(handler->GetId()) != _handlers.cend());
+        _handlers.erase(handler->GetId());
     }
 
 protected:
@@ -128,14 +128,14 @@ public:
 
     void AddHandler(IPacketHandler* handler)
     {
-        assert(_handlers.find(handler->GetDescriptor()) == _handlers.cend());
-        _handlers[handler->GetDescriptor()] = handler;
+        assert(_handlers.find(handler->GetId()) == _handlers.cend());
+        _handlers[handler->GetId()] = handler;
     }
 
     void RemoveHandler(IPacketHandler* handler)
     {
-        assert(_handlers.find(handler->GetDescriptor()) != _handlers.cend());
-        _handlers.erase(handler->GetDescriptor());
+        assert(_handlers.find(handler->GetId()) != _handlers.cend());
+        _handlers.erase(handler->GetId());
     }
 
     void AddClient(ClientSocket* client);

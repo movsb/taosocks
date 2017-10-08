@@ -30,7 +30,7 @@ private:
 
 public:
     // Inherited via IPacketHandler
-    virtual int GetDescriptor() override;
+    virtual int GetId() override;
     virtual void OnPacket(BasePacket * packet) override;
 
     std::function<ClientSocket*()> OnCreateClient;
@@ -52,7 +52,7 @@ private:
     int _sfd;
 
     // Inherited via IPacketHandler
-    virtual int GetDescriptor() override;
+    virtual int GetId() override;
     virtual void OnPacket(BasePacket * packet) override;
 };
 
@@ -71,7 +71,7 @@ private:
     void _OnRemoteClose(CloseReason::Value reason);
 
     // Inherited via IPacketHandler
-    virtual int GetDescriptor() override;
+    virtual int GetId() override;
     virtual void OnPacket(BasePacket * packet) override;
 };
 
