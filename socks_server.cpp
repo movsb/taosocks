@@ -112,7 +112,7 @@ void SocksServer::finish()
     p->__cmd = PacketCommand::Connect;
     p->__size = sizeof(ConnectPacket);
     p->__sfd = (int)INVALID_SOCKET;
-    p->__cfd = (int)_client->GetDescriptor();
+    p->__cfd = (int)_client->GetSocket();
 
     auto& host = _domain;
     auto service = std::to_string(_port);

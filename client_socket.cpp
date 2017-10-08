@@ -65,9 +65,9 @@ WSARet ClientSocket::Write(const unsigned char * data, size_t size, void * tag)
     auto writeio = new WriteIOContext();
     auto ret = writeio->Write(_fd, data, size);
     if(ret.Succ()) {
-        DWORD dwBytes;
-        auto r = writeio->GetResult(_fd, &dwBytes);
-        assert(r && dwBytes == size);
+        // DWORD dwBytes;
+        // auto r = writeio->GetResult(_fd, &dwBytes);
+        // assert(r && dwBytes == size);
         // LogLog("Ð´Á¢¼´³É¹¦£¬fd=%d,size=%d", _fd, size);
     }
     else if(ret.Fail()) {
@@ -213,11 +213,6 @@ void ClientSocket::OnTask(BaseIOContext& bio)
     else if(bio.optype == OpType::Connect) {
         _OnConnect(static_cast<ConnectIOContext&>(bio));
     }
-}
-
-int ClientSocket::GetDescriptor()
-{
-    return static_cast<int>(GetSocket());
 }
 
 }

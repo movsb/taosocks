@@ -14,7 +14,7 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
 
     _local->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
         // LogLog("读取了 %d 字节", size);
-        auto p = RelayPacket::Create(_sfd, _local->GetDescriptor(), data, size);
+        auto p = RelayPacket::Create(_sfd, _local->GetSocket(), data, size);
         _pktmgr->Send(p);
     });
 
@@ -42,7 +42,7 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
 // 网站主动关闭连接
 void ClientRelayClient::_OnRemoteDisconnect(DisconnectPacket * pkt)
 {
-    LogLog("收包：网站断开连接，浏览器fd=%d，浏览器当前状态：%s", _local->GetDescriptor(), _local->IsClosed() ? "已断开" : "未断开");
+    LogLog("收包：网站断开连接，浏览器fd=%d，浏览器当前状态：%s", _local->GetSocket(), _local->IsClosed() ? "已断开" : "未断开");
     if(!_local->IsClosed()) {
         _local->Close();
         _pktmgr->RemoveHandler(this);
@@ -54,7 +54,7 @@ void ClientRelayClient::_OnRemoteDisconnect(DisconnectPacket * pkt)
 
 int ClientRelayClient::GetDescriptor()
 {
-    return _local->GetDescriptor();
+    return _local->GetSocket();
 }
 
 void ClientRelayClient::OnPacket(BasePacket * packet)
@@ -79,7 +79,7 @@ ServerRelayClient::ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* 
 {
     _remote->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
         // LogLog("读取了 %d 字节", size);
-        auto p = RelayPacket::Create(_remote->GetDescriptor(), _cfd, data, size);
+        auto p = RelayPacket::Create(_remote->GetSocket(), _cfd, data, size);
         p->__guid = _guid;
         _pktmgr->Send(p);
     });
@@ -117,7 +117,7 @@ void ServerRelayClient::_OnRemoteClose(CloseReason::Value reason)
 
 int ServerRelayClient::GetDescriptor()
 {
-    return _remote->GetDescriptor();
+    return _remote->GetSocket();
 }
 
 void ServerRelayClient::OnPacket(BasePacket * packet)
@@ -178,7 +178,7 @@ void ConnectionHandler::_OnResolve(unsigned int addr, unsigned short port)
 
     c->OnConnect([this, c, addr, port](ClientSocket*, bool connected) {
         if(connected) {
-            _Respond(0, c->GetDescriptor(), addr, port);
+            _Respond(0, c->GetSocket(), addr, port);
             OnSucceed(c, _cfd, _guid);
         }
         else {

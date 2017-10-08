@@ -87,10 +87,5 @@ void ServerSocket::OnTask(BaseIOContext& bio)
     }
 }
 
-int ServerSocket::GetDescriptor()
-{
-    return static_cast<int>(GetSocket());
-}
-
 }
 

@@ -102,7 +102,7 @@ protected:
     in_addr _addr;
     std::string _domain;
 
-    virtual int GetDescriptor() override { return _client->GetDescriptor(); }
+    virtual int GetDescriptor() override { return _client->GetSocket(); }
     virtual void OnPacket(BasePacket* packet) override;
 
 private:

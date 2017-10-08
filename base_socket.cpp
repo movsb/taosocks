@@ -26,6 +26,11 @@ void BaseSocket::OnTask(OVERLAPPED* overlapped)
     return OnTask(*io);
 }
 
+HANDLE BaseSocket::GetHandle()
+{
+    return reinterpret_cast<HANDLE>(GetSocket());
+}
+
 WSARet BaseIOContext::GetResult(SOCKET fd, DWORD* pdwBytes /*= nullptr*/, DWORD* pdwFlags /*= nullptr*/)
 {
     DWORD dwFlags = 0;

@@ -5,20 +5,20 @@
 namespace taosocks {
 namespace iocp {
 
-void IOCP::Attach(TaskHandler* handler)
+void IOCP::Attach(ITaskHandler* handler)
 {
-    auto fd = reinterpret_cast<HANDLE>(handler->GetDescriptor());
+    auto fd = handler->GetHandle();
     assert(fd != nullptr && fd != INVALID_HANDLE_VALUE);
     _handle = ::CreateIoCompletionPort(fd, _handle, ULONG_PTR(handler), 0);
     assert(_handle != nullptr);
 }
 
-void IOCP::PostStatus(const TaskHandler& handler, const OVERLAPPED& overlapped)
+void IOCP::PostStatus(const ITaskHandler& handler, const OVERLAPPED& overlapped)
 {
     ::PostQueuedCompletionStatus(_handle, 0, ULONG_PTR(&handler), const_cast<OVERLAPPED*>(&overlapped));
 }
 
-bool IOCP::GetStatus(TaskHandler** handler, OVERLAPPED** overlapped)
+bool IOCP::GetStatus(ITaskHandler** handler, OVERLAPPED** overlapped)
 {
     DWORD dwBytes;
     BOOL bRet;
@@ -55,7 +55,7 @@ void IOCP::_Close()
 
 unsigned int IOCP::WorkThread()
 {
-    TaskHandler* handler;
+    ITaskHandler* handler;
     OVERLAPPED* overlapped;
 
     while(GetStatus(&handler, &overlapped)) {

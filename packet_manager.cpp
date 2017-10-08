@@ -13,7 +13,7 @@ ClientPacketManager::ClientPacketManager(Dispatcher & disp)
     , _connected(false)
     , _seq(0)
 {
-    LogLog("创建客户端包管理器：fd=%d\n", _client.GetDescriptor());
+    LogLog("创建客户端包管理器：fd=%d\n", _client.GetSocket());
 }
 
 void ClientPacketManager::StartActive()
@@ -181,7 +181,7 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
             _clients.emplace(bpkt->__guid, client);
         }
 
-        LogLog("收到数据包：fd=%d, seq=%d, cmd=%d, size=%d", client->GetDescriptor(), bpkt->__seq, bpkt->__cmd, bpkt->__size);
+        LogLog("收到数据包：fd=%d, seq=%d, cmd=%d, size=%d", client->GetSocket(), bpkt->__seq, bpkt->__cmd, bpkt->__size);
 
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
@@ -216,7 +216,7 @@ unsigned int ServerPacketManager::PacketThread()
             for(auto it = range.first; it != range.second; ++it) {
                 auto client = it->second;
                 client->Write((char*)pkt, pkt->__size, nullptr);
-                LogLog("发送数据包：fd=%d, seq=%d, cmd=%d, size=%d", client->GetDescriptor(), pkt->__seq, pkt->__cmd, pkt->__size);
+                LogLog("发送数据包：fd=%d, seq=%d, cmd=%d, size=%d", client->GetSocket(), pkt->__seq, pkt->__cmd, pkt->__size);
                 break;
             }
         }

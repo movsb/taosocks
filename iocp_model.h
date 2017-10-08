@@ -7,10 +7,10 @@
 namespace taosocks {
 namespace iocp {
 
-struct TaskHandler
+struct ITaskHandler
 {
     virtual void OnTask(OVERLAPPED* overlapped) = 0;
-    virtual int  GetDescriptor() = 0;
+    virtual HANDLE GetHandle() = 0;
 };
 
 class IOCP
@@ -29,11 +29,11 @@ public:
 
 
 public:
-    void Attach(TaskHandler* handler);
-    void PostStatus(const TaskHandler& handler, const OVERLAPPED& overlapped);
+    void Attach(ITaskHandler* handler);
+    void PostStatus(const ITaskHandler& handler, const OVERLAPPED& overlapped);
 
 protected:
-    bool GetStatus(TaskHandler** handler, OVERLAPPED** overlapped);
+    bool GetStatus(ITaskHandler** handler, OVERLAPPED** overlapped);
 
 protected:
     void _Create();

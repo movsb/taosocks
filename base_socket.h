@@ -51,7 +51,7 @@ struct BaseIOContext
     WSARet GetResult(SOCKET fd, DWORD* pdwBytes = nullptr, DWORD* pdwFlags = nullptr);
 };
 
-class BaseSocket : private threading::IDispatcher, public iocp::TaskHandler
+class BaseSocket : private threading::IDispatcher, public iocp::ITaskHandler
 {
 public:
     BaseSocket(Dispatcher& disp)
@@ -68,6 +68,7 @@ public:
     }
 
     SOCKET GetSocket() { return _fd; }
+    virtual HANDLE GetHandle() override;
 
 private:
     void CreateSocket();

@@ -42,7 +42,7 @@ int main()
 
     server.OnAccept([&](ClientSocket* client) {
         iocp.Attach(client);
-        LogLog("新的浏览器连接：fd=%d", client->GetDescriptor());
+        LogLog("新的浏览器连接：fd=%d", client->GetSocket());
         auto ss = new SocksServer(pktmgr, client);
         ss->OnSucceed = [&](SocksServer::ConnectionInfo& info) {
             auto rc = new ClientRelayClient(&pktmgr, info.client, info.sfd);

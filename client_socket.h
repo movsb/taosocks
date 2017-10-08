@@ -216,7 +216,6 @@ public:
     virtual void OnDispatch(BaseDispatchData& data) override;
 
     virtual void OnTask(BaseIOContext& bio) override;
-    virtual int GetDescriptor() override;
 };
 
 
