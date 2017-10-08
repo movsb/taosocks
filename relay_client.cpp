@@ -157,7 +157,9 @@ void ConnectionHandler::_OnConnectPacket(ConnectPacket* pkt)
     _guid = pkt->__guid;
 
     resolver rsv;
+    LogLog("解析前");
     rsv.resolve(pkt->host, pkt->service);
+    LogLog("解析后");
 
     if(rsv.size() > 0) {
         unsigned int addr;

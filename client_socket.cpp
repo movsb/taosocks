@@ -146,11 +146,15 @@ WSARet ClientSocket::_OnConnect(ConnectIOContext& io)
     WSARet ret = io.GetResult(_fd);
     if(ret.Succ()) {
         ConnectDispatchData data;
+        data.connected = true;
         Dispatch(data);
         Read();
     }
     else {
         LogFat("¡¨Ω” ß∞‹");
+        ConnectDispatchData data;
+        data.connected = false;
+        Dispatch(data);
     }
 
     return ret;
@@ -192,7 +196,7 @@ void ClientSocket::OnDispatch(BaseDispatchData & data)
     case OpType::Connect:
     {
         auto d = static_cast<ConnectDispatchData&>(data);
-        _onConnect(this, true);
+        _onConnect(this, d.connected);
         break;
     }
     }

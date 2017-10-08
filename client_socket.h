@@ -126,6 +126,8 @@ private:
         ConnectDispatchData()
             : BaseDispatchData(OpType::Connect)
         { }
+
+        bool connected;
     };
 
     struct ReadDispatchData : BaseDispatchData

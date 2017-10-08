@@ -181,7 +181,7 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
             _clients.emplace(bpkt->__guid, client);
         }
 
-        LogLog("收到数据包，来自fd=%d, seq=%d, cmd=%d, size=%d", client->GetDescriptor(), bpkt->__seq, bpkt->__cmd, bpkt->__size);
+        LogLog("收到数据包：fd=%d, seq=%d, cmd=%d, size=%d", client->GetDescriptor(), bpkt->__seq, bpkt->__cmd, bpkt->__size);
 
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
