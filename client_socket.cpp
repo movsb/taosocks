@@ -8,7 +8,7 @@ void ClientSocket::Close()
     if(!(_flags & Flags::Closed)) {
         _flags |= Flags::Closed;
         WSAIntRet ret = closesocket(_fd);
-        LogLog("关闭client,fd=%d,ret=%d", _fd, ret.Code());
+        LogLog("关闭client, id=%d,ret=%d", GetId(), ret.Code());
         assert(ret.Succ());
     }
 }
@@ -71,7 +71,7 @@ WSARet ClientSocket::Write(const unsigned char * data, size_t size, void * tag)
         // LogLog("写立即成功，fd=%d,size=%d", _fd, size);
     }
     else if(ret.Fail()) {
-        LogFat("写错误：fd=%d,code=%d", _fd, ret.Code());
+        LogFat("写错误：id=%d,code=%d", GetId(), ret.Code());
     }
     else if(ret.Async()) {
         // LogLog("写异步，fd=%d", _fd);
@@ -86,7 +86,7 @@ WSARet ClientSocket::Read()
         // LogLog("_Read 立即成功, fd:%d", _fd);
     }
     else if(ret.Fail()) {
-        LogFat("读错误：fd:%d,code=%d", _fd, ret.Code());
+        LogFat("读错误：id=%d,code=%d", GetId(), ret.Code());
     }
     else if(ret.Async()) {
         // LogLog("读异步 fd:%d", _fd);
@@ -106,19 +106,19 @@ void ClientSocket::_OnRead(ReadIOContext& io)
     }
     else {
         if(_flags & Flags::Closed) {
-            LogWrn("已主动关闭连接：fd:%d", _fd);
+            LogWrn("已主动关闭连接：id=%d", GetId());
             CloseDispatchData data;
             data.reason = CloseReason::Actively;
             Dispatch(data);
         }
         else if(ret.Succ() && dwBytes == 0) {
-            LogWrn("已被动关闭连接：fd:%d", _fd);
+            LogWrn("已被动关闭连接：id:%d", GetId());
             CloseDispatchData data;
             data.reason = CloseReason::Passively;
             Dispatch(data);
         }
         else if(ret.Fail()) {
-            LogFat("读失败：fd=%d,code:%d", _fd, ret.Code());
+            LogFat("读失败：id=%d,code:%d", GetId(), ret.Code());
             CloseDispatchData data;
             data.reason = CloseReason::Reset;
             Dispatch(data);

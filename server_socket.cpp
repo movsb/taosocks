@@ -22,6 +22,11 @@ void ServerSocket::Start(ULONG ip, USHORT port)
     }
 }
 
+int ServerSocket::GenId()
+{
+    return _next_id++;
+}
+
 void ServerSocket::OnAccept(std::function<void(ClientSocket*)> onAccepted)
 {
     _onAccepted = onAccepted;
@@ -32,7 +37,7 @@ ClientSocket * ServerSocket::_OnAccepted(AcceptIOContext & io)
     SOCKADDR_IN *local, *remote;
     io.GetAddresses(&local, &remote);
 
-    auto client = new ClientSocket(_disp, io.fd, *local, *remote);
+    auto client = new ClientSocket(GenId(), _disp, io.fd, *local, *remote);
     AcceptDispatchData data;
     data.client = client;
     Dispatch(data);

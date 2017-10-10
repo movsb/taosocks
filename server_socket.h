@@ -80,11 +80,14 @@ struct ServerSocket: public BaseSocket
 
 public:
     ServerSocket(threading::Dispatcher& disp)
-        : BaseSocket(disp)
+        : BaseSocket(-1, disp)
+        , _next_id(0)
     {
     }
     
     void Start(ULONG ip, USHORT port);
+
+    int GenId();
 
     void OnAccept(std::function<void(ClientSocket*)> onAccepted);
 
@@ -95,6 +98,9 @@ public:
     virtual void OnDispatch(BaseDispatchData& data) override;
 
     virtual void OnTask(BaseIOContext& bio) override;
+
+protected:
+    int _next_id;
 };
 
 }

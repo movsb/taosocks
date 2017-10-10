@@ -43,13 +43,13 @@ int main()
     pktmgr.AddHandler(&newrelay);
 
     newrelay.OnCreateClient = [&] {
-        auto c = new ClientSocket(disp);
+        auto c = new ClientSocket(server.GenId(), disp);
         iocp.Attach(c);
         return c;
     };
 
-    newrelay.OnSucceed = [&](ClientSocket* client, int cfd, GUID guid) {
-        auto rc = new ServerRelayClient(&pktmgr, client, cfd, guid);
+    newrelay.OnSucceed = [&](ClientSocket* client, int cid, GUID guid) {
+        auto rc = new ServerRelayClient(&pktmgr, client, cid, guid);
         pktmgr.AddHandler(rc);
     };
 

@@ -9,11 +9,11 @@
 namespace taosocks {
 ClientPacketManager::ClientPacketManager(Dispatcher & disp)
     : _disp(disp)
-    , _client(disp)
+    , _client(-1, disp)
     , _connected(false)
     , _seq(0)
 {
-    LogLog("创建客户端包管理器：fd=%d\n", _client.GetSocket());
+    LogLog("创建客户端包管理器");
 }
 
 void ClientPacketManager::StartActive()
@@ -62,10 +62,10 @@ void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
     recv_data.append(data, size);
 
     for(BasePacket* bpkt; (bpkt = recv_data.try_cast<BasePacket>()) != nullptr && (int)recv_data.size() >= bpkt->__size;) {
-        LogLog("收到数据包 seq=%d, cmd=%d, size=%d", bpkt->__seq, bpkt->__cmd, bpkt->__size);
+        LogLog("收到数据包 sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", bpkt->__sid, bpkt->__cid, bpkt->__seq, bpkt->__cmd, bpkt->__size);
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
-        auto handler = _handlers.find(pkt->__cfd);
+        auto handler = _handlers.find(pkt->__cid);
         if(pkt->__cmd == PacketCommand::Disconnect && handler == _handlers.cend()) {
             LogLog("收到断开连接包，但是浏览器早已断开连接");
         }
@@ -92,7 +92,7 @@ unsigned int ClientPacketManager::PacketThread()
         }
 
         if(pkt != nullptr) {
-            LogLog("发送数据包, seq=%d, cmd=%d, size=%d", pkt->__seq, pkt->__cmd, pkt->__size);
+            LogLog("发送数据包 sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
             _client.Write((char*)pkt, pkt->__size, nullptr);
         }
         else {
@@ -166,7 +166,7 @@ void ServerPacketManager::RemoveClient(ClientSocket* client)
 
 }
 
-void ServerPacketManager::CloseLocal(const GUID & guid, int cfd)
+void ServerPacketManager::CloseLocal(const GUID & guid, int cid)
 {
 }
 
@@ -181,11 +181,11 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
             _clients.emplace(bpkt->__guid, client);
         }
 
-        LogLog("收到数据包：fd=%d, seq=%d, cmd=%d, size=%d", client->GetSocket(), bpkt->__seq, bpkt->__cmd, bpkt->__size);
+        LogLog("收到数据包：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", bpkt->__sid, bpkt->__cid, bpkt->__seq, bpkt->__cmd, bpkt->__size);
 
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
-        auto handler = _handlers.find(pkt->__sfd);
+        auto handler = _handlers.find(pkt->__sid);
         if(pkt->__cmd == PacketCommand::Disconnect && handler == _handlers.cend()) {
             LogLog("收到断开连接包，但是网站早已断开连接");
         }
@@ -216,7 +216,7 @@ unsigned int ServerPacketManager::PacketThread()
             for(auto it = range.first; it != range.second; ++it) {
                 auto client = it->second;
                 client->Write((char*)pkt, pkt->__size, nullptr);
-                LogLog("发送数据包：fd=%d, seq=%d, cmd=%d, size=%d", client->GetSocket(), pkt->__seq, pkt->__cmd, pkt->__size);
+                LogLog("发送数据包：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
                 break;
             }
         }

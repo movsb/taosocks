@@ -58,8 +58,8 @@ public:
     {
         unsigned long addr;
         unsigned short port;
-        int cfd;
-        int sfd;
+        int cid;
+        int sid;
         ClientSocket* client;
     };
 
@@ -102,7 +102,7 @@ protected:
     in_addr _addr;
     std::string _domain;
 
-    virtual int GetId() override { return _client->GetSocket(); }
+    virtual int GetId() override { return _client->GetId(); }
     virtual void OnPacket(BasePacket* packet) override;
 
 private:

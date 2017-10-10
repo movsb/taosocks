@@ -111,8 +111,8 @@ void SocksServer::finish()
     auto p = new ConnectPacket;
     p->__cmd = PacketCommand::Connect;
     p->__size = sizeof(ConnectPacket);
-    p->__sfd = (int)INVALID_SOCKET;
-    p->__cfd = (int)_client->GetSocket();
+    p->__sid = -1;
+    p->__cid = (int)_client->GetId();
 
     auto& host = _domain;
     auto service = std::to_string(_port);
@@ -198,8 +198,8 @@ void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
     if(pkt->code == 0) {
 
         ConnectionInfo info;
-        info.sfd = pkt->__sfd;
-        info.cfd = pkt->__cfd;
+        info.sid = pkt->__sid;
+        info.cid = pkt->__cid;
         info.addr = pkt->addr;
         info.port = pkt->port;
         info.client = _client;

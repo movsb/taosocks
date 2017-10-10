@@ -159,15 +159,15 @@ private:
     };
 
 public:
-    ClientSocket(Dispatcher& disp)
-        : BaseSocket(disp)
+    ClientSocket(int id, Dispatcher& disp)
+        : BaseSocket(id, disp)
         , _flags(0)
     {
 
     }
 
-    ClientSocket(Dispatcher& disp, SOCKET fd, const SOCKADDR_IN& local, const SOCKADDR_IN& remote)
-        : BaseSocket(disp, fd)
+    ClientSocket(int id, Dispatcher& disp, SOCKET fd, const SOCKADDR_IN& local, const SOCKADDR_IN& remote)
+        : BaseSocket(id, disp, fd)
         , _flags(0)
         , _local(local)
         , _remote(remote)

@@ -5,16 +5,16 @@
 
 namespace taosocks {
 
-ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* local, int sfd)
+ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* local, int sid)
     : _pktmgr(pktmgr)
     , _local(local)
-    , _sfd(sfd)
+    , _sid(sid)
 {
     _pktmgr->AddHandler(this);
 
     _local->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
         // LogLog("读取了 %d 字节", size);
-        auto p = RelayPacket::Create(_sfd, _local->GetSocket(), data, size);
+        auto p = RelayPacket::Create(_sid, _local->GetId(), data, size);
         _pktmgr->Send(p);
     });
 
@@ -32,8 +32,8 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
             auto pkt = new DisconnectPacket;
             pkt->__size = sizeof(DisconnectPacket);
             pkt->__cmd = PacketCommand::Disconnect;
-            pkt->__sfd = _sfd;
-            pkt->__cfd = (int)INVALID_SOCKET;
+            pkt->__sid = _sid;
+            pkt->__cid = -1;
             _pktmgr->Send(pkt);
         }
     });
@@ -42,7 +42,7 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
 // 网站主动关闭连接
 void ClientRelayClient::_OnRemoteDisconnect(DisconnectPacket * pkt)
 {
-    LogLog("收包：网站断开连接，浏览器fd=%d，浏览器当前状态：%s", _local->GetSocket(), _local->IsClosed() ? "已断开" : "未断开");
+    LogLog("收包：网站断开连接，浏览器id=%d，浏览器当前状态：%s", _local->GetId(), _local->IsClosed() ? "已断开" : "未断开");
     if(!_local->IsClosed()) {
         _local->Close();
         _pktmgr->RemoveHandler(this);
@@ -54,7 +54,7 @@ void ClientRelayClient::_OnRemoteDisconnect(DisconnectPacket * pkt)
 
 int ClientRelayClient::GetId()
 {
-    return _local->GetSocket();
+    return _local->GetId();
 }
 
 void ClientRelayClient::OnPacket(BasePacket * packet)
@@ -71,15 +71,15 @@ void ClientRelayClient::OnPacket(BasePacket * packet)
 
 //////////////////////////////////////////////////////////////////////////
 
-ServerRelayClient::ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* remote, int cfd, GUID guid)
+ServerRelayClient::ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* remote, int cid, GUID guid)
     : _pktmgr(pktmgr)
     , _remote(remote)
-    , _cfd(cfd)
+    , _cid(cid)
     , _guid(guid)
 {
     _remote->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
         // LogLog("读取了 %d 字节", size);
-        auto p = RelayPacket::Create(_remote->GetSocket(), _cfd, data, size);
+        auto p = RelayPacket::Create(_remote->GetId(), _cid, data, size);
         p->__guid = _guid;
         _pktmgr->Send(p);
     });
@@ -102,22 +102,22 @@ void ServerRelayClient::_OnRemoteClose(CloseReason::Value reason)
     else if(reason == CloseReason::Passively || reason == CloseReason::Reset) {
         LogLog("网站关闭/异常断开连接");
         _pktmgr->RemoveHandler(this);
-        _pktmgr->CloseLocal(_guid, _cfd);
+        _pktmgr->CloseLocal(_guid, _cid);
         _remote->Close();
 
         auto pkt = new DisconnectPacket;
         pkt->__size = sizeof(DisconnectPacket);
         pkt->__cmd = PacketCommand::Disconnect;
         pkt->__guid = _guid;
-        pkt->__cfd = _cfd;
-        pkt->__sfd = (int)INVALID_SOCKET;
+        pkt->__cid = _cid;
+        pkt->__sid = -1;
         _pktmgr->Send(pkt);
    }
 }
 
 int ServerRelayClient::GetId()
 {
-    return _remote->GetSocket();
+    return _remote->GetId();
 }
 
 void ServerRelayClient::OnPacket(BasePacket * packet)
@@ -133,14 +133,14 @@ void ServerRelayClient::OnPacket(BasePacket * packet)
     }
 }
 
-void ConnectionHandler::_Respond(int code, int sfd, unsigned int addr, unsigned short port)
+void ConnectionHandler::_Respond(int code, int sid, unsigned int addr, unsigned short port)
 {
     auto p = new ConnectRespondPacket;
 
     p->__size = sizeof(ConnectRespondPacket);
     p->__cmd = PacketCommand::Connect;
-    p->__sfd = sfd;
-    p->__cfd = _cfd;
+    p->__sid = sid;
+    p->__cid = _cid;
     p->__guid = _guid;
     p->addr = addr;
     p->port = port;
@@ -151,15 +151,13 @@ void ConnectionHandler::_Respond(int code, int sfd, unsigned int addr, unsigned 
 
 void ConnectionHandler::_OnConnectPacket(ConnectPacket* pkt)
 {
-    assert(pkt->__sfd == (int)INVALID_SOCKET);
+    assert(pkt->__sid == -1);
 
-    _cfd = pkt->__cfd;
+    _cid = pkt->__cid;
     _guid = pkt->__guid;
 
     resolver rsv;
-    LogLog("解析前");
     rsv.resolve(pkt->host, pkt->service);
-    LogLog("解析后");
 
     if(rsv.size() > 0) {
         unsigned int addr;
@@ -178,8 +176,8 @@ void ConnectionHandler::_OnResolve(unsigned int addr, unsigned short port)
 
     c->OnConnect([this, c, addr, port](ClientSocket*, bool connected) {
         if(connected) {
-            _Respond(0, c->GetSocket(), addr, port);
-            OnSucceed(c, _cfd, _guid);
+            _Respond(0, c->GetId(), addr, port);
+            OnSucceed(c, _cid, _guid);
         }
         else {
             _Respond(1, GetId(), 0, 0);
@@ -194,7 +192,7 @@ void ConnectionHandler::_OnResolve(unsigned int addr, unsigned short port)
 
 int ConnectionHandler::GetId()
 {
-    return (int)INVALID_SOCKET;
+    return -1;
 }
 
 void ConnectionHandler::OnPacket(BasePacket* packet)

@@ -34,22 +34,22 @@ struct  BasePacket
     GUID            __guid;
     unsigned int    __seq;
     int             __cmd;
-    int             __sfd;
-    int             __cfd;
+    int             __sid;
+    int             __cid;
 };
 
 struct RelayPacket : BasePacket
 {
     unsigned char data[1];
 
-    static RelayPacket* Create(SOCKET sfd, SOCKET cfd, const unsigned char* data, size_t size)
+    static RelayPacket* Create(SOCKET sid, SOCKET cid, const unsigned char* data, size_t size)
     {
         auto pkt_size = sizeof(BasePacket) + size;
         auto p = new (new char[pkt_size]) RelayPacket;
         p->__size = pkt_size;
         p->__cmd = PacketCommand::Relay;
-        p->__sfd = sfd;
-        p->__cfd = cfd;
+        p->__sid = sid;
+        p->__cid = cid;
         std::memcpy(p->data, data, size);
         return p;
     }
@@ -141,7 +141,7 @@ public:
     void AddClient(ClientSocket* client);
     void RemoveClient(ClientSocket* client);
 
-    void CloseLocal(const GUID& guid, int cfd);
+    void CloseLocal(const GUID& guid, int cid);
 
 protected:
     void OnRead(ClientSocket* clinet, unsigned char* data, size_t size);
