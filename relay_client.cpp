@@ -133,15 +133,15 @@ void ServerRelayClient::OnPacket(BasePacket * packet)
     }
 }
 
-void ConnectionHandler::_Respond(int code, int sid, unsigned int addr, unsigned short port)
+void ConnectionHandler::_Respond(int code, int sid, int cid, GUID guid, unsigned int addr, unsigned short port)
 {
     auto p = new ConnectRespondPacket;
 
     p->__size = sizeof(ConnectRespondPacket);
     p->__cmd = PacketCommand::Connect;
     p->__sid = sid;
-    p->__cid = _cid;
-    p->__guid = _guid;
+    p->__cid = cid;
+    p->__guid = guid;
     p->addr = addr;
     p->port = port;
     p->code = code;
@@ -153,9 +153,6 @@ void ConnectionHandler::_OnConnectPacket(ConnectPacket* pkt)
 {
     assert(pkt->__sid == -1);
 
-    _cid = pkt->__cid;
-    _guid = pkt->__guid;
-
     resolver rsv;
     rsv.resolve(pkt->host, pkt->service);
 
@@ -163,24 +160,29 @@ void ConnectionHandler::_OnConnectPacket(ConnectPacket* pkt)
         unsigned int addr;
         unsigned short port;
         rsv.get(0, &addr, &port);
-        _OnResolve(addr, port);
+        _OnResolve(pkt->__cid, pkt->__guid, addr, port);
     }
     else {
-        _Respond(1, GetId(), 0, 0);
+        _Respond(1, GetId(), pkt->__cid, pkt->__guid, 0, 0);
     }
 }
 
-void ConnectionHandler::_OnResolve(unsigned int addr, unsigned short port)
+void ConnectionHandler::_OnResolve(int cid, GUID guid, unsigned int addr, unsigned short port)
 {
     auto c = OnCreateClient();
 
+    _contexts[c->GetId()] = {cid, guid};
+
     c->OnConnect([this, c, addr, port](ClientSocket*, bool connected) {
+        auto ctx = _contexts[c->GetId()];
+        _contexts.erase(c->GetId());
+
         if(connected) {
-            _Respond(0, c->GetId(), addr, port);
-            OnSucceed(c, _cid, _guid);
+            _Respond(0, c->GetId(), ctx.cid, ctx.guid, addr, port);
+            OnSucceed(c, ctx.cid, ctx.guid);
         }
         else {
-            _Respond(1, GetId(), 0, 0);
+            _Respond(1, GetId(), ctx.cid, ctx.guid, 0, 0);
             OnError(c);
         }
     });

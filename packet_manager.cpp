@@ -177,7 +177,6 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
 
     for(BasePacket* bpkt; (bpkt = recv_data.try_cast<BasePacket>()) != nullptr && (int)recv_data.size() >= bpkt->__size;) {
         if(bpkt->__cmd == PacketCommand::Connect) {
-            AddClient(client);
             _clients.emplace(bpkt->__guid, client);
         }
 

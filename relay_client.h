@@ -20,13 +20,11 @@ public:
 
 private:
     ServerPacketManager* _pktmgr;
-    int _cid;
-    GUID _guid;
 
 private:
-    void _Respond(int code, int sid, unsigned int addr, unsigned short port);
+    void _Respond(int code, int sid, int cid, GUID guid, unsigned int addr, unsigned short port);
     void _OnConnectPacket(ConnectPacket* pkt);
-    void _OnResolve(unsigned int addr, unsigned short port);
+    void _OnResolve(int cid, GUID guid, unsigned int addr, unsigned short port);
 
 public:
     // Inherited via IPacketHandler
@@ -36,6 +34,14 @@ public:
     std::function<ClientSocket*()> OnCreateClient;
     std::function<void(ClientSocket*, int cid, GUID guid)> OnSucceed;
     std::function<void(ClientSocket*)> OnError;
+
+    struct Context
+    {
+        int cid;
+        GUID guid;
+    };
+
+    std::map<int, Context> _contexts;
 };
 
 class ClientRelayClient : public IPacketHandler
