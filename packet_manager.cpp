@@ -66,11 +66,10 @@ void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
         auto handler = _handlers.find(pkt->__cid);
-        if(pkt->__cmd == PacketCommand::Disconnect && handler == _handlers.cend()) {
-            LogLog("收到断开连接包，但是浏览器早已断开连接");
+        if(handler == _handlers.cend()) {
+            LogWrn("包没有处理器，丢弃。");
         }
         else {
-            assert(handler != _handlers.cend());
             handler->second->OnPacket(pkt);
         }
     }
@@ -185,11 +184,10 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
         auto handler = _handlers.find(pkt->__sid);
-        if(pkt->__cmd == PacketCommand::Disconnect && handler == _handlers.cend()) {
-            LogLog("收到断开连接包，但是网站早已断开连接");
+        if(handler == _handlers.cend()) {
+            LogWrn("包没有处理器，丢弃。");
         }
         else {
-            assert(handler != _handlers.cend());
             handler->second->OnPacket(pkt);
         }
     }
