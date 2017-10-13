@@ -16,7 +16,6 @@ struct OpType
     enum Value
     {
         __Beg,
-        Init,
         Close,
         Accept,
         Read,
@@ -77,10 +76,10 @@ private:
     void CreateSocket();
 
 protected:
-    void Dispatch(BaseDispatchData& data);
+    void Dispatch(BaseDispatchData* data);
     
 protected:
-    virtual void OnDispatch(BaseDispatchData& data) = 0;
+    virtual void OnDispatch(BaseDispatchData* data) = 0;
     virtual void OnTask(BaseIOContext& bio) = 0;
 
 private:

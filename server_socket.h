@@ -14,14 +14,6 @@ namespace {
 using namespace base_socket;
 using namespace winsock;
 
-struct InitIOContext : BaseIOContext
-{
-    InitIOContext()
-        : BaseIOContext(OpType::Init)
-    { }
-};
-
-
 struct AcceptIOContext : BaseIOContext
 {
     AcceptIOContext()
@@ -93,9 +85,9 @@ public:
 
     ClientSocket* _OnAccepted(AcceptIOContext& io);
 
-    std::vector<ClientSocket*> _Accept();
+    void _Accept();
 
-    virtual void OnDispatch(BaseDispatchData& data) override;
+    virtual void OnDispatch(BaseDispatchData* data) override;
 
     virtual void OnTask(BaseIOContext& bio) override;
 

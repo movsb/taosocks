@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+#include <list>
 #include <functional>
 
 #include "base_socket.h"
@@ -175,8 +177,6 @@ public:
 
     }
 
-    void* user_datum;
-
     typedef std::function<void(ClientSocket*, unsigned char*, size_t)> OnReadT;
     typedef std::function<void(ClientSocket*, size_t)> OnWriteT;
     typedef std::function<void(ClientSocket*, CloseReason::Value reason)> OnCloseT;
@@ -190,7 +190,7 @@ private:
     OnCloseT _onClose;
     OnConnectT _onConnect;
     DWORD _flags;
-
+    std::list<std::string> _read_queue;
 
 public:
     void OnRead(OnReadT onRead);
@@ -213,7 +213,7 @@ private:
 
 
 public:
-    virtual void OnDispatch(BaseDispatchData& data) override;
+    virtual void OnDispatch(BaseDispatchData* data) override;
 
     virtual void OnTask(BaseIOContext& bio) override;
 };

@@ -94,11 +94,8 @@ public:
     }
 
 protected:
+    void Schedule();
     void OnRead(ClientSocket* clinet, unsigned char* data, size_t size);
-
-protected:
-    unsigned int PacketThread();
-    static unsigned int __stdcall __ThreadProc(void* that);
 
 private:
     unsigned int _seq;
@@ -108,7 +105,6 @@ private:
     std::map<ClientSocket*, DataWindow> _recv_data;
     Dispatcher& _disp;
     std::vector<ClientSocket*> _clients;
-    threading::Locker _lock;
 };
 
 struct GUIDLessComparer {
@@ -142,14 +138,9 @@ public:
     void AddClient(ClientSocket* client);
     void RemoveClient(ClientSocket* client);
 
-    void CloseLocal(const GUID& guid, int cid);
-
 protected:
+    void Schedule();
     void OnRead(ClientSocket* clinet, unsigned char* data, size_t size);
-
-protected:
-    unsigned int PacketThread();
-    static unsigned int __stdcall __ThreadProc(void* that);
 
 private:
     unsigned int _seq;
@@ -158,7 +149,6 @@ private:
     std::map<ClientSocket*, DataWindow> _recv_data;
     Dispatcher& _disp;
     std::map<GUID, std::vector<ClientSocket*>, GUIDLessComparer> _clients;
-    threading::Locker _lock;
 };
 
 }

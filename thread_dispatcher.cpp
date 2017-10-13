@@ -23,9 +23,7 @@ int Dispatcher::Run()
 void Dispatcher::Dispatch(IDispatcher * disp, void * data)
 {
     assert(::IsWindow(_hwnd));
-    _lock.Lock();
-    ::SendMessage(_hwnd, s_msg, WPARAM(disp), LPARAM(data));
-    _lock.Unlock();
+    ::PostMessage(_hwnd, s_msg, WPARAM(disp), LPARAM(data));
 }
 
 void Dispatcher::_Create()

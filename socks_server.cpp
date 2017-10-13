@@ -15,12 +15,19 @@ SocksServer::SocksServer(ClientPacketManager& pktmgr, ClientSocket * client)
 
     _pktmgr.AddHandler(this);
 
+    _client->Read();
+
     _client->OnRead([this](ClientSocket*, unsigned char* data, size_t size) { return _OnClientRead(data, size); });
     _client->OnWrite([this](ClientSocket*, size_t) {});
     _client->OnClose([this](ClientSocket*, CloseReason::Value reason) {return _OnClientClose(reason); });
 }
 void SocksServer::feed(const unsigned char * data, size_t size)
 {
+    if(_phrase == Phrase::Finish) {
+        return;
+        assert(0);
+    }
+
     _recv.append(data, size);
 
     while(_recv.size() > 0) {
@@ -141,17 +148,15 @@ void SocksServer::_OnClientClose(CloseReason::Value reason)
 
 void SocksServer::_OnClientRead(unsigned char * data, size_t size)
 {
-    try {
-        feed(data, size);
-    }
-    catch(const std::string& e) {
-
-    }
+    feed(data, size);
 
     if(_phrase == Phrase::Finish) {
         assert(_recv.size() == 0);
-        LogLog("解析完成");
+        LogLog("解析完成 cid=%d, domain=%s, port=%d", _client->GetId(), _domain.c_str(), _port);
         finish();
+    }
+    else {
+        _client->Read();
     }
 }
 
@@ -191,31 +196,32 @@ void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
         data.append(0);
     }
 
+    _client->OnWrite([this, pkt](ClientSocket*, size_t) {
+        if(pkt->code == 0) {
+            ConnectionInfo info;
+            info.sid = pkt->__sid;
+            info.cid = pkt->__cid;
+            info.addr = pkt->addr;
+            info.port = pkt->port;
+            info.client = _client;
+            assert(OnSucceed);
+            _pktmgr.RemoveHandler(this);
+            OnSucceed(info);
+        }
+        else {
+            // 应该等到socks应答数据写完再关闭
+            // 如果立即写成功，那么对方会主动关闭
+            // Read 会报告被动关闭
+            _client->Close();
+            _pktmgr.RemoveHandler(this);
+            assert(OnError);
+            OnError("连接失败");
+        }
+    });
+
     auto ret = _client->Write((char*)data.data(), data.size(), nullptr);
     LogLog("Socks应答状态：%d,%d", ret.Succ(), ret.Code());
-    assert(ret.Succ());
-
-    if(pkt->code == 0) {
-
-        ConnectionInfo info;
-        info.sid = pkt->__sid;
-        info.cid = pkt->__cid;
-        info.addr = pkt->addr;
-        info.port = pkt->port;
-        info.client = _client;
-        assert(OnSucceed);
-        _pktmgr.RemoveHandler(this);
-        OnSucceed(info);
-    }
-    else {
-        // 应该等到socks应答数据写完再关闭
-        // 如果立即写成功，那么对方会主动关闭
-        // Read 会报告被动关闭
-        _client->Close();
-        _pktmgr.RemoveHandler(this);
-        assert(OnError);
-        OnError("连接失败");
-    }
+    assert(!ret.Fail());
 }
 
 }

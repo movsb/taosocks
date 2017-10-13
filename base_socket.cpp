@@ -9,15 +9,15 @@ void BaseSocket::CreateSocket()
     assert(_fd != INVALID_SOCKET);
 }
 
-void BaseSocket::Dispatch(BaseDispatchData & data)
+void BaseSocket::Dispatch(BaseDispatchData* data)
 {
-    return _disp.Dispatch(this, &data);
+    return _disp.Dispatch(this, data);
 }
 
 void BaseSocket::OnDispatch(void * data)
 {
     auto base = static_cast<BaseDispatchData*>(data);
-    return OnDispatch(*base);
+    return OnDispatch(base);
 }
 
 void BaseSocket::OnTask(OVERLAPPED* overlapped)

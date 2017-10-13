@@ -21,14 +21,13 @@ void ClientPacketManager::StartActive()
 
     LogLog("主动打开");
 
-    ::_beginthreadex(nullptr, 0, __ThreadProc, this, 0, nullptr);
-
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < 1; i++) {
         auto client = new ClientSocket(i, _disp);
         OnCreateClient(client);
         client->OnConnect([this](ClientSocket* c, bool connected) {
             LogLog("已连接到服务端");
             _clients.push_back(c);
+            c->Read();
         });
 
         client->OnRead([this](ClientSocket* c, unsigned char* data, size_t size) {
@@ -55,7 +54,25 @@ void ClientPacketManager::Send(BasePacket* pkt)
     std::memcpy(&pkt->__guid, &_guid, sizeof(GUID));
     pkt->__seq = ++_seq;
     _packets.push_back(pkt);
-    // LogLog("添加一个数据包");
+    Schedule();
+}
+
+void ClientPacketManager::Schedule()
+{
+    if(_packets.empty()) {
+        return;
+    }
+
+    assert(!_clients.empty());
+
+    auto pkt = _packets.front();
+    _packets.pop_front();
+
+    auto index = std::rand() % _clients.size();
+    auto client = _clients[index];
+
+    client->Write((char*)pkt, pkt->__size, nullptr);
+    LogLog("发送数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
 }
 
 void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
@@ -75,39 +92,8 @@ void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
             handler->second->OnPacket(pkt);
         }
     }
-}
 
-unsigned int ClientPacketManager::PacketThread()
-{
-    std::srand(std::time(nullptr));
-
-    for(;;) {
-        BasePacket* pkt =nullptr;
-        ClientSocket* client = nullptr;
-
-        _lock.LockExecute([&] {
-            if(!_clients.empty() && !_packets.empty()) {
-                pkt = _packets.front();
-                _packets.pop_front();
-                client = _clients[std::rand() % _clients.size()];
-            }
-        });
-
-        if(pkt != nullptr) {
-            LogLog("发送数据包(%d) sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
-            client->Write((char*)pkt, pkt->__size, nullptr);
-        }
-        else {
-            ::Sleep(500);
-        }
-    }
-
-    return 0;
-}
-
-unsigned int ClientPacketManager::__ThreadProc(void * that)
-{
-    return static_cast<ClientPacketManager*>(that)->PacketThread();
+    client->Read();
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -121,26 +107,27 @@ ServerPacketManager::ServerPacketManager(Dispatcher & disp)
 void ServerPacketManager::StartPassive()
 {
     LogLog("被动打开");
-    ::_beginthreadex(nullptr, 0, __ThreadProc, this, 0, nullptr);
 }
 
 void ServerPacketManager::Send(BasePacket* pkt)
 {
     assert(pkt != nullptr);
     pkt->__seq = ++_seq;
-    _lock.LockExecute([&] {
-        // LogLog("添加一个数据包");
-        _packets.push_back(pkt);
-    });
+    _packets.push_back(pkt);
+    Schedule();
 }
+
 
 void ServerPacketManager::AddClient(ClientSocket* client)
 {
+    client->Read();
+
     client->OnRead([this](ClientSocket* client, unsigned char* data, size_t size) {
         return OnRead(client, data, size);
     });
 
     client->OnWrite([](ClientSocket* client, size_t size) {
+
     });
 
     // 可能是掉线、可能是正常关闭
@@ -168,8 +155,25 @@ void ServerPacketManager::RemoveClient(ClientSocket* client)
 
 }
 
-void ServerPacketManager::CloseLocal(const GUID & guid, int cid)
+void ServerPacketManager::Schedule()
 {
+    if(_packets.empty()) {
+        return;
+    }
+
+    assert(!_clients.empty());
+
+    auto pkt = _packets.front();
+    _packets.pop_front();
+
+    auto range = _clients.equal_range(pkt->__guid);
+    assert(range.first != range.second);
+
+    auto index = std::rand() % _clients.count(pkt->__guid);
+    auto client = _clients[pkt->__guid][index];
+
+    client->Write((char*)pkt, pkt->__size, nullptr);
+    LogLog("发送数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
 }
 
 void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
@@ -194,44 +198,8 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
             handler->second->OnPacket(pkt);
         }
     }
-}
 
-unsigned int ServerPacketManager::PacketThread()
-{
-    for(;;) {
-        BasePacket* pkt =nullptr;
-
-            _lock.LockExecute([&] {
-                if(!_packets.empty()) {
-                    pkt = _packets.front();
-                    _packets.pop_front();
-                }
-            });
-
-        if(pkt != nullptr) {
-            auto range = _clients.equal_range(pkt->__guid);
-
-            if(range.first == range.second) {
-                assert(0 && "没有接收端");
-            }
-
-            auto index = std::rand() % _clients.count(pkt->__guid);
-            auto client = _clients[pkt->__guid][index];
-
-            client->Write((char*)pkt, pkt->__size, nullptr);
-            LogLog("发送数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
-        }
-        else {
-            ::Sleep(500);
-        }
-    }
-
-    return 0;
-}
-
-unsigned int ServerPacketManager::__ThreadProc(void * that)
-{
-    return static_cast<ServerPacketManager*>(that)->PacketThread();
+    client->Read();
 }
 
 }

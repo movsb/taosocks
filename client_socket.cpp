@@ -98,29 +98,28 @@ void ClientSocket::_OnRead(ReadIOContext& io)
     DWORD dwBytes = 0;
     WSARet ret = io.GetResult(_fd, &dwBytes);
     if(ret.Succ() && dwBytes > 0) {
-        ReadDispatchData data;
-        data.data = io.buf;
-        data.size = dwBytes;
+        ReadDispatchData* data = new ReadDispatchData;
+        data->data = io.buf;
+        data->size = dwBytes;
         Dispatch(data);
-        Read();
     }
     else {
         if(_flags & Flags::Closed) {
             LogWrn("已主动关闭连接：id=%d", GetId());
-            CloseDispatchData data;
-            data.reason = CloseReason::Actively;
+            CloseDispatchData* data = new CloseDispatchData;
+            data->reason = CloseReason::Actively;
             Dispatch(data);
         }
         else if(ret.Succ() && dwBytes == 0) {
             LogWrn("已被动关闭连接：id:%d", GetId());
-            CloseDispatchData data;
-            data.reason = CloseReason::Passively;
+            CloseDispatchData* data = new CloseDispatchData;
+            data->reason = CloseReason::Passively;
             Dispatch(data);
         }
         else if(ret.Fail()) {
             LogFat("读失败：id=%d,code:%d", GetId(), ret.Code());
-            CloseDispatchData data;
-            data.reason = CloseReason::Reset;
+            CloseDispatchData* data = new CloseDispatchData;
+            data->reason = CloseReason::Reset;
             Dispatch(data);
         }
     }
@@ -131,47 +130,52 @@ WSARet ClientSocket::_OnWrite(WriteIOContext& io)
     WSARet ret = io.GetResult(_fd, &dwBytes);
     if(ret.Succ() && dwBytes > 0) {
         assert(dwBytes == io.wsabuf.len);
-        WriteDispatchData data;
-        data.size = dwBytes;
+        WriteDispatchData* data = new WriteDispatchData;
+        data->size = dwBytes;
         Dispatch(data);
     }
     else {
-        LogFat("写失败 %d", ret.Code());
+        LogFat("写失败 id=%d, code=%d", GetId(), ret.Code());
     }
 
     return ret;
 }
+
 WSARet ClientSocket::_OnConnect(ConnectIOContext& io)
 {
     WSARet ret = io.GetResult(_fd);
     if(ret.Succ()) {
-        ConnectDispatchData data;
-        data.connected = true;
+        ConnectDispatchData* data = new ConnectDispatchData;
+        data->connected = true;
         Dispatch(data);
-        Read();
     }
     else {
         LogFat("连接失败");
-        ConnectDispatchData data;
-        data.connected = false;
+        ConnectDispatchData* data = new ConnectDispatchData;
+        data->connected = false;
         Dispatch(data);
     }
 
     return ret;
 }
-void ClientSocket::OnDispatch(BaseDispatchData & data)
+void ClientSocket::OnDispatch(BaseDispatchData* data)
 {
-    switch(data.optype) {
+    switch(data->optype) {
     case OpType::Read:
     {
-        auto d = static_cast<ReadDispatchData&>(data);
-        _onRead(this, d.data, d.size);
+        auto d = static_cast<ReadDispatchData*>(data);
+        if(_onRead == nullptr) {
+            _read_queue.push_back(std::string((char*)d->data, d->size));
+        }
+        else {
+            _onRead(this, d->data, d->size);
+        }
         break;
     }
     case OpType::Write:
     {
-        auto d = static_cast<WriteDispatchData&>(data);
-        _onWrite(this, d.size);
+        auto d = static_cast<WriteDispatchData*>(data);
+        _onWrite(this, d->size);
         break;
     }
     case OpType::Close:
@@ -181,22 +185,22 @@ void ClientSocket::OnDispatch(BaseDispatchData & data)
         // 比如正在处理远端关闭的时候遇到关闭
         // 进入后就已经是被关闭状态
         auto closed = IsClosed();
-        auto d = static_cast<CloseDispatchData&>(data);
-        if(d.reason != CloseReason::Actively) {
+        auto d = static_cast<CloseDispatchData*>(data);
+        if(d->reason != CloseReason::Actively) {
             if(!closed) {
                 Close();
             }
         }
         // 这里也同理
         if(!closed) {
-            _onClose(this, d.reason);
+            _onClose(this, d->reason);
         }
         break;
     }
     case OpType::Connect:
     {
-        auto d = static_cast<ConnectDispatchData&>(data);
-        _onConnect(this, d.connected);
+        auto d = static_cast<ConnectDispatchData*>(data);
+        _onConnect(this, d->connected);
         break;
     }
     }
