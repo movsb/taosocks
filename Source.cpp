@@ -38,7 +38,9 @@ int main()
     ClientPacketManager pktmgr(disp);
 
     iocp.Attach(&server);
-    iocp.Attach(&pktmgr.GetClient());
+    pktmgr.OnCreateClient = [&iocp](ClientSocket* c) {
+        iocp.Attach(c);
+    };
 
     server.OnAccept([&](ClientSocket* client) {
         iocp.Attach(client);

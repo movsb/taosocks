@@ -75,9 +75,11 @@ public:
 
     void StartActive();
 
-    ClientSocket& GetClient() { return _client; }
+    const std::vector<ClientSocket*>& GetClients() { return _clients; }
 
     void Send(BasePacket* pkt);
+
+    std::function<void(ClientSocket*)> OnCreateClient;
 
     void AddHandler(IPacketHandler* handler)
     {
@@ -100,13 +102,12 @@ protected:
 
 private:
     unsigned int _seq;
-    bool _connected;
     GUID _guid;
     std::map<int, IPacketHandler*> _handlers;
     std::list<BasePacket*> _packets;
-    DataWindow _recv_data;
+    std::map<ClientSocket*, DataWindow> _recv_data;
     Dispatcher& _disp;
-    ClientSocket _client;
+    std::vector<ClientSocket*> _clients;
     threading::Locker _lock;
 };
 
@@ -156,7 +157,7 @@ private:
     std::list<BasePacket*> _packets;
     std::map<ClientSocket*, DataWindow> _recv_data;
     Dispatcher& _disp;
-    std::multimap<GUID, ClientSocket*, GUIDLessComparer> _clients;
+    std::map<GUID, std::vector<ClientSocket*>, GUIDLessComparer> _clients;
     threading::Locker _lock;
 };
 

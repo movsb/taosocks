@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include <ctime>
 #include <process.h>
 
 #include "packet_manager.h"
@@ -9,8 +10,6 @@
 namespace taosocks {
 ClientPacketManager::ClientPacketManager(Dispatcher & disp)
     : _disp(disp)
-    , _client(-1, disp)
-    , _connected(false)
     , _seq(0)
 {
     LogLog("创建客户端包管理器");
@@ -24,27 +23,30 @@ void ClientPacketManager::StartActive()
 
     ::_beginthreadex(nullptr, 0, __ThreadProc, this, 0, nullptr);
 
-    _client.OnConnect([this](ClientSocket*, bool connected) {
-        LogLog("已连接到服务端");
-        _connected = true;
-    });
+    for(int i = 0; i < 10; i++) {
+        auto client = new ClientSocket(i, _disp);
+        OnCreateClient(client);
+        client->OnConnect([this](ClientSocket* c, bool connected) {
+            LogLog("已连接到服务端");
+            _clients.push_back(c);
+        });
 
-    _client.OnRead([this](ClientSocket* client, unsigned char* data, size_t size) {
-        // LogLog("接收到数据 size=%d", size);
-        return OnRead(client, data, size);
-    });
+        client->OnRead([this](ClientSocket* c, unsigned char* data, size_t size) {
+            return OnRead(c, data, size);
+        });
 
-    _client.OnWrite([](ClientSocket*, size_t size) {
-        // LogLog("发送数据 size=%d", size);
-    });
+        client->OnWrite([](ClientSocket* c, size_t size) {
+            // LogLog("发送数据 size=%d", size);
+        });
 
-    _client.OnClose([this](ClientSocket*, CloseReason::Value reason){
-        LogLog("与服务端断开连接");
-    });
+        client->OnClose([this](ClientSocket* c, CloseReason::Value reason) {
+            LogLog("与服务端断开连接");
+        });
 
-    in_addr addr;
-    addr.S_un.S_addr = ::inet_addr("127.0.0.1");
-    _client.Connect(addr, 8081);
+        in_addr addr;
+        addr.S_un.S_addr = ::inet_addr("127.0.0.1");
+        client->Connect(addr, 8081);
+    }
 }
 
 void ClientPacketManager::Send(BasePacket* pkt)
@@ -58,11 +60,11 @@ void ClientPacketManager::Send(BasePacket* pkt)
 
 void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
 {
-    auto& recv_data = _recv_data;
+    auto& recv_data = _recv_data[client];
     recv_data.append(data, size);
 
     for(BasePacket* bpkt; (bpkt = recv_data.try_cast<BasePacket>()) != nullptr && (int)recv_data.size() >= bpkt->__size;) {
-        LogLog("收到数据包 sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", bpkt->__sid, bpkt->__cid, bpkt->__seq, bpkt->__cmd, bpkt->__size);
+        LogLog("收到数据包(%d) sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), bpkt->__sid, bpkt->__cid, bpkt->__seq, bpkt->__cmd, bpkt->__size);
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
         auto handler = _handlers.find(pkt->__cid);
@@ -77,22 +79,23 @@ void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
 
 unsigned int ClientPacketManager::PacketThread()
 {
+    std::srand(std::time(nullptr));
+
     for(;;) {
         BasePacket* pkt =nullptr;
+        ClientSocket* client = nullptr;
 
-        if(_connected) {
-            _lock.LockExecute([&] {
-                if(!_packets.empty()) {
-                    pkt = _packets.front();
-                    _packets.pop_front();
-                }
-            });
-
-        }
+        _lock.LockExecute([&] {
+            if(!_clients.empty() && !_packets.empty()) {
+                pkt = _packets.front();
+                _packets.pop_front();
+                client = _clients[std::rand() % _clients.size()];
+            }
+        });
 
         if(pkt != nullptr) {
-            LogLog("发送数据包 sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
-            _client.Write((char*)pkt, pkt->__size, nullptr);
+            LogLog("发送数据包(%d) sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
+            client->Write((char*)pkt, pkt->__size, nullptr);
         }
         else {
             ::Sleep(500);
@@ -176,10 +179,10 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
 
     for(BasePacket* bpkt; (bpkt = recv_data.try_cast<BasePacket>()) != nullptr && (int)recv_data.size() >= bpkt->__size;) {
         if(bpkt->__cmd == PacketCommand::Connect) {
-            _clients.emplace(bpkt->__guid, client);
+            _clients[bpkt->__guid].push_back(client);
         }
 
-        LogLog("收到数据包：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", bpkt->__sid, bpkt->__cid, bpkt->__seq, bpkt->__cmd, bpkt->__size);
+        LogLog("收到数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), bpkt->__sid, bpkt->__cid, bpkt->__seq, bpkt->__cmd, bpkt->__size);
 
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
@@ -207,15 +210,16 @@ unsigned int ServerPacketManager::PacketThread()
 
         if(pkt != nullptr) {
             auto range = _clients.equal_range(pkt->__guid);
+
             if(range.first == range.second) {
                 assert(0 && "没有接收端");
             }
-            for(auto it = range.first; it != range.second; ++it) {
-                auto client = it->second;
-                client->Write((char*)pkt, pkt->__size, nullptr);
-                LogLog("发送数据包：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
-                break;
-            }
+
+            auto index = std::rand() % _clients.count(pkt->__guid);
+            auto client = _clients[pkt->__guid][index];
+
+            client->Write((char*)pkt, pkt->__size, nullptr);
+            LogLog("发送数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
         }
         else {
             ::Sleep(500);
