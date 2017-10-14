@@ -123,43 +123,6 @@ private:
         };
     };
 
-    struct ConnectDispatchData : BaseDispatchData
-    {
-        ConnectDispatchData()
-            : BaseDispatchData(OpType::Connect)
-        { }
-
-        bool connected;
-    };
-
-    struct ReadDispatchData : BaseDispatchData
-    {
-        ReadDispatchData()
-            : BaseDispatchData(OpType::Read)
-        { }
-
-        unsigned char* data;
-        size_t size;
-    };
-
-    struct WriteDispatchData : BaseDispatchData
-    {
-        WriteDispatchData()
-            : BaseDispatchData(OpType::Write)
-        { }
-
-        size_t size;
-    };
-
-    struct CloseDispatchData : BaseDispatchData
-    {
-        CloseDispatchData()
-            : BaseDispatchData(OpType::Close)
-        { }
-
-        CloseReason::Value reason;
-    };
-
 public:
     ClientSocket(int id, Dispatcher& disp)
         : BaseSocket(id, disp)
@@ -190,7 +153,7 @@ private:
     OnCloseT _onClose;
     OnConnectT _onConnect;
     DWORD _flags;
-    std::list<std::string> _read_queue;
+    std::list<ReadIOContext*> _read_queue;
 
 public:
     void OnRead(OnReadT onRead);
@@ -207,15 +170,13 @@ public:
     bool IsClosed() const { return _flags & Flags::Closed; }
 
 private:
-    void _OnRead(ReadIOContext& io);
-    WSARet _OnWrite(WriteIOContext& io);
-    WSARet _OnConnect(ConnectIOContext& io);
+    void _OnRead(ReadIOContext* io);
+    WSARet _OnWrite(WriteIOContext* io);
+    WSARet _OnConnect(ConnectIOContext* io);
 
 
 public:
-    virtual void OnDispatch(BaseDispatchData* data) override;
-
-    virtual void OnTask(BaseIOContext& bio) override;
+    virtual void OnTask(BaseIOContext* bio) override;
 };
 
 

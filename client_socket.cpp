@@ -93,38 +93,33 @@ WSARet ClientSocket::Read()
     }
     return ret;
 }
-void ClientSocket::_OnRead(ReadIOContext& io)
+void ClientSocket::_OnRead(ReadIOContext* rio)
 {
     DWORD dwBytes = 0;
-    WSARet ret = io.GetResult(_fd, &dwBytes);
+    WSARet ret = rio->GetResult(_fd, &dwBytes);
     if(ret.Succ() && dwBytes > 0) {
-        ReadDispatchData* data = new ReadDispatchData;
-        data->data = io.buf;
-        data->size = dwBytes;
-        Dispatch(data);
+
     }
     else {
         if(_flags & Flags::Closed) {
             LogWrn("已主动关闭连接：id=%d", GetId());
-            CloseDispatchData* data = new CloseDispatchData;
             data->reason = CloseReason::Actively;
             Dispatch(data);
         }
         else if(ret.Succ() && dwBytes == 0) {
             LogWrn("已被动关闭连接：id:%d", GetId());
-            CloseDispatchData* data = new CloseDispatchData;
             data->reason = CloseReason::Passively;
             Dispatch(data);
         }
         else if(ret.Fail()) {
             LogFat("读失败：id=%d,code:%d", GetId(), ret.Code());
-            CloseDispatchData* data = new CloseDispatchData;
             data->reason = CloseReason::Reset;
             Dispatch(data);
         }
     }
 }
-WSARet ClientSocket::_OnWrite(WriteIOContext& io)
+
+WSARet ClientSocket::_OnWrite(WriteIOContext* io)
 {
     DWORD dwBytes = 0;
     WSARet ret = io.GetResult(_fd, &dwBytes);
@@ -141,7 +136,7 @@ WSARet ClientSocket::_OnWrite(WriteIOContext& io)
     return ret;
 }
 
-WSARet ClientSocket::_OnConnect(ConnectIOContext& io)
+WSARet ClientSocket::_OnConnect(ConnectIOContext* io)
 {
     WSARet ret = io.GetResult(_fd);
     if(ret.Succ()) {
@@ -158,24 +153,24 @@ WSARet ClientSocket::_OnConnect(ConnectIOContext& io)
 
     return ret;
 }
-void ClientSocket::OnDispatch(BaseDispatchData* data)
+void ClientSocket::OnTask(BaseIOContext* bio)
 {
-    switch(data->optype) {
+    switch(bio->optype) {
     case OpType::Read:
     {
-        auto d = static_cast<ReadDispatchData*>(data);
+        auto rio = static_cast<ReadIOContext*>(bio);
         if(_onRead == nullptr) {
-            _read_queue.push_back(std::string((char*)d->data, d->size));
+            _read_queue.push_back(rio);
         }
         else {
-            _onRead(this, d->data, d->size);
+            _OnRead(rio);
         }
         break;
     }
     case OpType::Write:
     {
-        auto d = static_cast<WriteDispatchData*>(data);
-        _onWrite(this, d->size);
+        auto wio = static_cast<WriteIOContext*>(bio);
+        _OnWrite(wio);
         break;
     }
     case OpType::Close:
@@ -199,23 +194,10 @@ void ClientSocket::OnDispatch(BaseDispatchData* data)
     }
     case OpType::Connect:
     {
-        auto d = static_cast<ConnectDispatchData*>(data);
-        _onConnect(this, d->connected);
+        auto cio = static_cast<ConnectIOContext*>(bio);
+        _OnConnect(cio);
         break;
     }
-    }
-}
-
-void ClientSocket::OnTask(BaseIOContext& bio)
-{
-    if(bio.optype == OpType::Read) {
-        _OnRead(static_cast<ReadIOContext&>(bio));
-    }
-    else if(bio.optype == OpType::Write) {
-        _OnWrite(static_cast<WriteIOContext&>(bio));
-    }
-    else if(bio.optype == OpType::Connect) {
-        _OnConnect(static_cast<ConnectIOContext&>(bio));
     }
 }
 

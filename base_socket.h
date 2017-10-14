@@ -25,17 +25,6 @@ struct OpType
     };
 };
 
-struct BaseDispatchData
-{
-    BaseDispatchData(OpType::Value type)
-        : optype(type)
-    {
-        assert(OpType::__Beg < type && type < OpType::__End);
-    }
-
-    OpType::Value optype;
-};
-
 struct BaseIOContext
 {
     OVERLAPPED overlapped;
@@ -76,11 +65,7 @@ private:
     void CreateSocket();
 
 protected:
-    void Dispatch(BaseDispatchData* data);
-    
-protected:
-    virtual void OnDispatch(BaseDispatchData* data) = 0;
-    virtual void OnTask(BaseIOContext& bio) = 0;
+    virtual void OnTask(BaseIOContext* bio) = 0;
 
 private:
     virtual void OnDispatch(void* data) override;

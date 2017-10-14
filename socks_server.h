@@ -13,7 +13,15 @@ namespace {
 struct SocksVersion
 {
     enum Value {
-        v4 = 0x04,
+        v4 = 0x04,  // v4 & v4a
+        v5 = 0x05,
+    };
+};
+
+struct AuthMethod
+{
+    enum Value {
+        NoAuth  = 0x00,
     };
 };
 
