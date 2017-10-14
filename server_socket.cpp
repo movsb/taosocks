@@ -29,17 +29,15 @@ void ServerSocket::OnAccept(std::function<void(ClientSocket*)> onAccepted)
     _onAccepted = onAccepted;
 }
 
-ClientSocket * ServerSocket::_OnAccepted(AcceptIOContext & io)
+void ServerSocket::_OnAccepted(AcceptIOContext* io)
 {
     SOCKADDR_IN *local, *remote;
-    io.GetAddresses(&local, &remote);
+    io->GetAddresses(&local, &remote);
 
-    auto client = new ClientSocket(GenId(), _disp, io.fd, *local, *remote);
-    AcceptDispatchData* data = new AcceptDispatchData;
-    data->client = client;
-    Dispatch(data);
+    auto client = new ClientSocket(GenId(), _disp, io->fd, *local, *remote);
+    _onAccepted(client);
 
-    return client;
+    _Accept();
 }
 
 void ServerSocket::_Accept()
@@ -63,24 +61,10 @@ void ServerSocket::_Accept()
     }
 }
 
-void ServerSocket::OnDispatch(BaseDispatchData* data)
+void ServerSocket::OnTask(BaseIOContext* bio)
 {
-    switch(data->optype) {
-    case OpType::Accept:
-    {
-        auto d = static_cast<AcceptDispatchData*>(data);
-        _onAccepted(d->client);
-        break;
-    }
-    }
-}
-
-void ServerSocket::OnTask(BaseIOContext& bio)
-{
-    if(bio.optype == OpType::Accept) {
-        auto aio = static_cast<AcceptIOContext&>(bio);
-        _OnAccepted(aio);
-        _Accept();
+    if(bio->optype == OpType::Accept) {
+        _OnAccepted(static_cast<AcceptIOContext*>(bio));
     }
 }
 

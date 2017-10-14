@@ -171,8 +171,8 @@ public:
 
 private:
     void _OnRead(ReadIOContext* io);
-    WSARet _OnWrite(WriteIOContext* io);
-    WSARet _OnConnect(ConnectIOContext* io);
+    void _OnWrite(WriteIOContext* io);
+    void _OnConnect(ConnectIOContext* io);
 
 
 public:

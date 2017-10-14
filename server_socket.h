@@ -61,15 +61,6 @@ struct ServerSocket: public BaseSocket
 {
     std::function<void(ClientSocket*)> _onAccepted;
 
-    struct AcceptDispatchData : BaseDispatchData
-    {
-        AcceptDispatchData()
-            : BaseDispatchData(OpType::Accept)
-        { }
-
-        ClientSocket* client;
-    };
-
 public:
     ServerSocket(threading::Dispatcher& disp)
         : BaseSocket(-1, disp)
@@ -83,13 +74,11 @@ public:
 
     void OnAccept(std::function<void(ClientSocket*)> onAccepted);
 
-    ClientSocket* _OnAccepted(AcceptIOContext& io);
+    void _OnAccepted(AcceptIOContext* io);
 
     void _Accept();
 
-    virtual void OnDispatch(BaseDispatchData* data) override;
-
-    virtual void OnTask(BaseIOContext& bio) override;
+    virtual void OnTask(BaseIOContext* bio) override;
 
 protected:
     int _next_id;

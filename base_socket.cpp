@@ -11,7 +11,7 @@ void BaseSocket::CreateSocket()
 
 void BaseSocket::OnDispatch(void* data)
 {
-    return OnDispatch(static_cast<BaseIOContext*>(data));
+    return OnTask(static_cast<BaseIOContext*>(data));
 }
 
 void BaseSocket::OnTask(OVERLAPPED* overlapped)

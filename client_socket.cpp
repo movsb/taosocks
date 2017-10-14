@@ -93,66 +93,49 @@ WSARet ClientSocket::Read()
     }
     return ret;
 }
+
 void ClientSocket::_OnRead(ReadIOContext* rio)
 {
     DWORD dwBytes = 0;
     WSARet ret = rio->GetResult(_fd, &dwBytes);
     if(ret.Succ() && dwBytes > 0) {
-
+        _onRead(this, rio->buf, dwBytes);
     }
     else {
         if(_flags & Flags::Closed) {
             LogWrn("已主动关闭连接：id=%d", GetId());
-            data->reason = CloseReason::Actively;
-            Dispatch(data);
+            _onClose(this, CloseReason::Actively);
         }
         else if(ret.Succ() && dwBytes == 0) {
             LogWrn("已被动关闭连接：id:%d", GetId());
-            data->reason = CloseReason::Passively;
-            Dispatch(data);
+            _onClose(this, CloseReason::Passively);
         }
         else if(ret.Fail()) {
             LogFat("读失败：id=%d,code:%d", GetId(), ret.Code());
-            data->reason = CloseReason::Reset;
-            Dispatch(data);
+            _onClose(this, CloseReason::Reset);
         }
     }
 }
 
-WSARet ClientSocket::_OnWrite(WriteIOContext* io)
+void ClientSocket::_OnWrite(WriteIOContext* io)
 {
     DWORD dwBytes = 0;
-    WSARet ret = io.GetResult(_fd, &dwBytes);
+    WSARet ret = io->GetResult(_fd, &dwBytes);
     if(ret.Succ() && dwBytes > 0) {
-        assert(dwBytes == io.wsabuf.len);
-        WriteDispatchData* data = new WriteDispatchData;
-        data->size = dwBytes;
-        Dispatch(data);
+        assert(dwBytes == io->wsabuf.len);
+        _onWrite(this, dwBytes);
     }
     else {
         LogFat("写失败 id=%d, code=%d", GetId(), ret.Code());
     }
-
-    return ret;
 }
 
-WSARet ClientSocket::_OnConnect(ConnectIOContext* io)
+void ClientSocket::_OnConnect(ConnectIOContext* io)
 {
-    WSARet ret = io.GetResult(_fd);
-    if(ret.Succ()) {
-        ConnectDispatchData* data = new ConnectDispatchData;
-        data->connected = true;
-        Dispatch(data);
-    }
-    else {
-        LogFat("连接失败");
-        ConnectDispatchData* data = new ConnectDispatchData;
-        data->connected = false;
-        Dispatch(data);
-    }
-
-    return ret;
+    WSARet ret = io->GetResult(_fd);
+    _onConnect(this, ret.Succ());
 }
+
 void ClientSocket::OnTask(BaseIOContext* bio)
 {
     switch(bio->optype) {
@@ -169,33 +152,12 @@ void ClientSocket::OnTask(BaseIOContext* bio)
     }
     case OpType::Write:
     {
-        auto wio = static_cast<WriteIOContext*>(bio);
-        _OnWrite(wio);
-        break;
-    }
-    case OpType::Close:
-    {
-        // 进入主线程前可能没关闭
-        // 但进入后就不一定了
-        // 比如正在处理远端关闭的时候遇到关闭
-        // 进入后就已经是被关闭状态
-        auto closed = IsClosed();
-        auto d = static_cast<CloseDispatchData*>(data);
-        if(d->reason != CloseReason::Actively) {
-            if(!closed) {
-                Close();
-            }
-        }
-        // 这里也同理
-        if(!closed) {
-            _onClose(this, d->reason);
-        }
+        _OnWrite(static_cast<WriteIOContext*>(bio));
         break;
     }
     case OpType::Connect:
     {
-        auto cio = static_cast<ConnectIOContext*>(bio);
-        _OnConnect(cio);
+        _OnConnect(static_cast<ConnectIOContext*>(bio));
         break;
     }
     }
