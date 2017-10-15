@@ -15,15 +15,16 @@ int Dispatcher::Run()
 {
     MSG msg;
     while(::GetMessage(&msg, nullptr, 0, 0)) {
-        DispatchMessage(&msg);
+        ::DispatchMessage(&msg);
     }
     return (int)msg.wParam;
 }
 
-void Dispatcher::Dispatch(IDispatcher * disp, void * data)
+void Dispatcher::Dispatch(IDispatcher* disp, void* data)
 {
     assert(::IsWindow(_hwnd));
-    ::PostMessage(_hwnd, s_msg, WPARAM(disp), LPARAM(data));
+    BOOL bRet = ::PostMessage(_hwnd, s_msg, WPARAM(disp), LPARAM(data));
+    assert(bRet != FALSE);
 }
 
 void Dispatcher::_Create()
