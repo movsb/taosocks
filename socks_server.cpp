@@ -78,13 +78,13 @@ void SocksServer::feed(const unsigned char * data, size_t size)
         }
         case Phrase::User:
         {
-            auto index = _recv.index_char('\0');
+            auto index = _recv.index_of('\0');
 
             if(index == -1) {
                 return;
             }
 
-            _recv.get_string(index + 1);
+            _recv.get_string(index + 1, 1);
 
             _is_v4a = _addr.S_un.S_un_b.s_b1 == 0
                 && _addr.S_un.S_un_b.s_b2 == 0
@@ -97,13 +97,13 @@ void SocksServer::feed(const unsigned char * data, size_t size)
         }
         case Phrase::Domain:
         {
-            auto index = _recv.index_char('\0');
+            auto index = _recv.index_of('\0');
 
             if(index == -1) {
                 return;
             }
 
-            _domain = _recv.get_string(index + 1);
+            _domain = _recv.get_string(index + 1, 1);
 
             _phrase = Phrase::Finish;
 

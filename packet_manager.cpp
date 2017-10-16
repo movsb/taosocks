@@ -43,7 +43,8 @@ void ClientPacketManager::StartActive()
         });
 
         in_addr addr;
-        addr.S_un.S_addr = ::inet_addr("47.52.128.226");
+        // addr.S_un.S_addr = ::inet_addr("47.52.128.226");
+        addr.S_un.S_addr = ::inet_addr("127.0.0.1");
         client->Connect(addr, 8081);
     }
 }

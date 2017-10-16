@@ -15,8 +15,14 @@ public:
         , _beg(0)
         , _end(0)
     {
-        if(size == 0) size = 1;
-        _dat = new unsigned char[size];
+        if(size > 0) {
+            _dat = new unsigned char[size];
+        }
+    }
+
+    ~DataWindow()
+    {
+        clear();
     }
 
 public:
@@ -41,12 +47,15 @@ public:
     {
         _beg = 0;
         _end = 0;
+        _cap = 0;
+        delete[] _dat;
+        _dat = nullptr;
     }
 
     void get(void* p, size_t n)
     {
         check_size(0, n);
-        std::memcpy(p, _dat + _beg, n);
+        std::memcpy(p, data(), n);
         _beg += n;
     }
 
@@ -85,15 +94,20 @@ public:
         return __get<unsigned int>(offset, false);
     }
 
-    std::string get_string(size_t count)
+    std::string get_string(size_t count, size_t trim_right)
     {
         check_size(0, count);
-        std::string s = {_dat + _beg, _dat + _beg + count};
+        std::string s = {(char*)data(), (char*)data() + count};
+        if(trim_right > 0 && trim_right <= count) {
+            while(trim_right--) {
+                s.pop_back();
+            }
+        }
         _beg += count;
         return std::move(s);
     }
 
-    int index_char(unsigned char c)
+    int index_of(unsigned char c)
     {
         int index = -1;
 
@@ -111,7 +125,7 @@ public:
     T* try_cast()
     {
         return size() >= sizeof(T)
-            ? reinterpret_cast<T*>(_dat + _beg)
+            ? reinterpret_cast<T*>(data())
             : nullptr
             ;
     }
@@ -144,7 +158,7 @@ private:
 
         // if enough from the beginning
         if(_beg > 0 && _beg + (_cap - _end) >= increment) {
-            std::memmove(_dat + 0, _dat + _beg, size());
+            std::memmove(_dat + 0, data(), size());
             _end = size();
             _beg = 0;
             return;
@@ -155,7 +169,7 @@ private:
         size_t scale = 2;
         size_t capacity = required * scale;
         unsigned char* p = new unsigned char[capacity];
-        std::memcpy(p, _dat + _beg, size());
+        std::memcpy(p, data(), size());
         delete[] _dat;
 
         _end = size();
