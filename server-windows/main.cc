@@ -29,22 +29,18 @@ int main()
     IOCP iocp;
     Dispatcher disp;
 
-    ServerPacketManager pktmgr(disp);
-    ServerSocket server(disp);
+    ServerPacketManager pktmgr(iocp, disp);
+    ServerSocket server(iocp, disp);
     ConnectionHandler newrelay(&pktmgr);
 
-    iocp.Attach(&server);
-
     server.OnAccept([&](ClientSocket* client) {
-        iocp.Attach(client);
         pktmgr.AddClient(client);
     });
 
     pktmgr.AddHandler(&newrelay);
 
     newrelay.OnCreateClient = [&] {
-        auto c = new ClientSocket(server.GenId(), disp);
-        iocp.Attach(c);
+        auto c = new ClientSocket(server.GenId(), iocp, disp);
         return c;
     };
 

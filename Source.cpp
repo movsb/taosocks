@@ -34,16 +34,10 @@ int main()
     IOCP iocp;
     Dispatcher disp;
 
-    ServerSocket server(disp);
-    ClientPacketManager pktmgr(disp);
-
-    iocp.Attach(&server);
-    pktmgr.OnCreateClient = [&iocp](ClientSocket* c) {
-        iocp.Attach(c);
-    };
+    ServerSocket server(iocp, disp);
+    ClientPacketManager pktmgr(iocp, disp);
 
     server.OnAccept([&](ClientSocket* client) {
-        iocp.Attach(client);
         LogLog("新的浏览器连接：id=%d", client->GetId());
         auto ss = new SocksServer(pktmgr, client);
         ss->OnSucceed = [&](SocksServer::ConnectionInfo& info) {

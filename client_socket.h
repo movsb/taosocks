@@ -124,15 +124,15 @@ private:
     };
 
 public:
-    ClientSocket(int id, Dispatcher& disp)
-        : BaseSocket(id, disp)
+    ClientSocket(int id, IOCP& ios, Dispatcher& disp)
+        : BaseSocket(id, ios, disp)
         , _flags(0)
     {
 
     }
 
-    ClientSocket(int id, Dispatcher& disp, SOCKET fd, const SOCKADDR_IN& local, const SOCKADDR_IN& remote)
-        : BaseSocket(id, disp, fd)
+    ClientSocket(int id, IOCP& ios, Dispatcher& disp, SOCKET fd, const SOCKADDR_IN& local, const SOCKADDR_IN& remote)
+        : BaseSocket(id, ios, disp, fd)
         , _flags(0)
         , _local(local)
         , _remote(remote)

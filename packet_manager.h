@@ -9,6 +9,7 @@
 #include "data_window.hpp"
 #include "client_socket.h"
 #include "thread_dispatcher.h"
+#include "iocp_model.h"
 
 namespace taosocks {
 namespace packet_manager {
@@ -71,15 +72,13 @@ struct IPacketHandler
 class ClientPacketManager
 {
 public:
-    ClientPacketManager(Dispatcher& disp);
+    ClientPacketManager(IOCP& ios, Dispatcher& disp);
 
     void StartActive();
 
     const std::vector<ClientSocket*>& GetClients() { return _clients; }
 
     void Send(BasePacket* pkt);
-
-    std::function<void(ClientSocket*)> OnCreateClient;
 
     void AddHandler(IPacketHandler* handler)
     {
@@ -103,6 +102,7 @@ private:
     std::map<int, IPacketHandler*> _handlers;
     std::list<BasePacket*> _packets;
     std::map<ClientSocket*, DataWindow> _recv_data;
+    IOCP& _ios;
     Dispatcher& _disp;
     std::vector<ClientSocket*> _clients;
 };
@@ -117,7 +117,7 @@ struct GUIDLessComparer {
 class ServerPacketManager
 {
 public:
-    ServerPacketManager(Dispatcher& disp);
+    ServerPacketManager(IOCP& ios, Dispatcher& disp);
 
     void StartPassive();
 
@@ -147,6 +147,7 @@ private:
     std::map<int, IPacketHandler*> _handlers;
     std::list<BasePacket*> _packets;
     std::map<ClientSocket*, DataWindow> _recv_data;
+    IOCP& _ios;
     Dispatcher& _disp;
     std::map<GUID, std::vector<ClientSocket*>, GUIDLessComparer> _clients;
 };

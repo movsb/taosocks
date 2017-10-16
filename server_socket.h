@@ -62,8 +62,8 @@ struct ServerSocket: public BaseSocket
     std::function<void(ClientSocket*)> _onAccepted;
 
 public:
-    ServerSocket(threading::Dispatcher& disp)
-        : BaseSocket(-1, disp)
+    ServerSocket(IOCP& ios, Dispatcher& disp)
+        : BaseSocket(-1, ios, disp)
         , _next_id(0)
     {
     }

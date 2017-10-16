@@ -8,8 +8,9 @@
 
 
 namespace taosocks {
-ClientPacketManager::ClientPacketManager(Dispatcher & disp)
+ClientPacketManager::ClientPacketManager(IOCP& ios, Dispatcher & disp)
     : _disp(disp)
+    , _ios(ios)
     , _seq(0)
 {
     LogLog("创建客户端包管理器");
@@ -22,8 +23,7 @@ void ClientPacketManager::StartActive()
     LogLog("主动打开");
 
     for(int i = 0; i < 1; i++) {
-        auto client = new ClientSocket(i, _disp);
-        OnCreateClient(client);
+        auto client = new ClientSocket(i, _ios, _disp);
         client->OnConnect([this](ClientSocket* c, bool connected) {
             LogLog("已连接到服务端");
             _clients.push_back(c);
@@ -99,8 +99,9 @@ void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
 
 //////////////////////////////////////////////////////////////////////////
 
-ServerPacketManager::ServerPacketManager(Dispatcher & disp)
+ServerPacketManager::ServerPacketManager(IOCP& ios, Dispatcher & disp)
     : _disp(disp)
+    , _ios(ios)
     , _seq(0)
 {
 }
