@@ -17,7 +17,8 @@ void BaseSocket::OnDispatch(void* data)
 void BaseSocket::OnTask(OVERLAPPED* overlapped)
 {
     assert(offsetof(BaseIOContext, overlapped) == 0);
-    return _disp.Dispatch(this, reinterpret_cast<BaseIOContext*>(overlapped));
+    extern Dispatcher* g_disp;
+    return g_disp->Dispatch(this, reinterpret_cast<BaseIOContext*>(overlapped));
 }
 
 HANDLE BaseSocket::GetHandle()

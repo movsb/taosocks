@@ -21,6 +21,9 @@ static const GUID providerGuid =
 TaoLogger g_taoLogger(providerGuid);
 #endif
 
+Dispatcher* g_disp;
+IOCP* g_ios;
+
 
 int main()
 {
@@ -29,8 +32,11 @@ int main()
     IOCP iocp;
     Dispatcher disp;
 
-    ServerPacketManager pktmgr(iocp, disp);
-    ServerSocket server(iocp, disp);
+    g_disp = &disp;
+    g_ios = &iocp;
+
+    ServerPacketManager pktmgr;
+    ServerSocket server;
     ConnectionHandler newrelay(&pktmgr);
 
     server.OnAccept([&](ClientSocket* client) {
@@ -40,7 +46,7 @@ int main()
     pktmgr.AddHandler(&newrelay);
 
     newrelay.OnCreateClient = [&] {
-        auto c = new ClientSocket(server.GenId(), iocp, disp);
+        auto c = new ClientSocket(server.GenId());
         return c;
     };
 

@@ -44,7 +44,7 @@ public:
     std::map<int, Context> _contexts;
 };
 
-class ClientRelayClient : public IPacketHandler
+class ClientRelayClient
 {
 public:
     ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* local, int sid);
@@ -57,9 +57,7 @@ private:
     ClientPacketManager* _pktmgr;
     int _sid;
 
-    // Inherited via IPacketHandler
-    virtual int GetId() override;
-    virtual void OnPacket(BasePacket * packet) override;
+    bool OnPacket(BasePacket * packet);
 };
 
 class ServerRelayClient : public IPacketHandler

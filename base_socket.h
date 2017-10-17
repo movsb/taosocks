@@ -42,22 +42,20 @@ struct BaseIOContext
 class BaseSocket : private threading::IDispatcher, public iocp::ITaskHandler
 {
 public:
-    BaseSocket(int id, IOCP& ios, Dispatcher& disp)
+    BaseSocket(int id)
         : _id(id)
-        , _ios(ios)
-        , _disp(disp)
     {
         CreateSocket();
-        ios.Attach(this);
+        extern IOCP* g_ios;
+        g_ios->Attach(this);
     }
 
-    BaseSocket(int id, IOCP& ios, Dispatcher& disp, SOCKET fd)
-        : _disp(disp)
-        , _ios(ios)
-        , _fd(fd)
+    BaseSocket(int id, SOCKET fd)
+        : _fd(fd)
         , _id(id)
     {
-        ios.Attach(this);
+        extern IOCP* g_ios;
+        g_ios->Attach(this);
     }
 
     SOCKET GetSocket() { return _fd; }
@@ -75,8 +73,6 @@ private:
     virtual void OnTask(OVERLAPPED* overlapped) override;
 
 protected:
-    IOCP& _ios;
-    Dispatcher& _disp;
     SOCKET _fd;
     int _id;
 };

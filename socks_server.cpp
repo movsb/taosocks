@@ -6,20 +6,30 @@
 
 namespace taosocks {
 
-SocksServer::SocksServer(ClientPacketManager& pktmgr, ClientSocket * client)
+SocksServer::SocksServer(ClientSocket * client)
     : _client(client)
-    , _pktmgr(pktmgr)
     , _phrase(Phrase::Init)
 {
     assert(_client != nullptr);
 
-    _pktmgr.AddHandler(this);
 
     _client->Read();
 
     _client->OnRead([this](ClientSocket*, unsigned char* data, size_t size) { return _OnClientRead(data, size); });
     _client->OnWrite([this](ClientSocket*, size_t) {});
     _client->OnClose([this](ClientSocket*, CloseReason::Value reason) {return _OnClientClose(reason); });
+
+
+    _pktmgr = new ClientPacketManager();
+    _pktmgr->OnError = [this]() {
+        OnError("无法连接到服务器。");
+    };
+    _pktmgr->OnPacketRead = [this](BasePacket* packet) {
+        return OnPacket(packet);
+    };
+    _pktmgr->OnPacketSent = [this]() {
+
+    };
 }
 void SocksServer::feed(const unsigned char * data, size_t size)
 {
@@ -130,7 +140,7 @@ void SocksServer::finish()
     std::strcpy(p->host, host.c_str());
     std::strcpy(p->service, service.c_str());
 
-    _pktmgr.Send(p);
+    _pktmgr->Send(p);
 }
 
 void SocksServer::_OnClientClose(CloseReason::Value reason)
@@ -160,7 +170,7 @@ void SocksServer::_OnClientRead(unsigned char * data, size_t size)
     }
 }
 
-void SocksServer::OnPacket(BasePacket* packet)
+bool SocksServer::OnPacket(BasePacket* packet)
 {
     if(packet->__cmd == PacketCommand::Connect) {
         OnConnectPacket(static_cast<ConnectRespondPacket*>(packet));
@@ -168,6 +178,7 @@ void SocksServer::OnPacket(BasePacket* packet)
     else {
         assert(0 && "invalid packet");
     }
+    return false;
 }
 
 void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
@@ -204,8 +215,8 @@ void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
             info.addr = pkt->addr;
             info.port = pkt->port;
             info.client = _client;
+            info.pktmgr = _pktmgr;
             assert(OnSucceed);
-            _pktmgr.RemoveHandler(this);
             OnSucceed(info);
         }
         else {
@@ -213,7 +224,6 @@ void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
             // 如果立即写成功，那么对方会主动关闭
             // Read 会报告被动关闭
             _client->Close();
-            _pktmgr.RemoveHandler(this);
             assert(OnError);
             OnError("连接失败");
         }

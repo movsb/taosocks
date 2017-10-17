@@ -59,7 +59,7 @@ struct ConnectRespondPacket : BasePacket
 
 #pragma pack(pop)
 
-class SocksServer : public IPacketHandler
+class SocksServer
 {
 public:
     struct ConnectionInfo
@@ -69,6 +69,7 @@ public:
         int cid;
         int sid;
         ClientSocket* client;
+        ClientPacketManager* pktmgr;
     };
 
 private:
@@ -86,7 +87,7 @@ private:
     };
 
 public:
-    SocksServer(ClientPacketManager& pktmgr, ClientSocket* client);
+    SocksServer(ClientSocket* client);
 
     std::function<void(ConnectionInfo&)> OnSucceed;
     std::function<void(const std::string&)> OnError;
@@ -100,7 +101,7 @@ protected:
     void _OnClientRead(unsigned char* data, size_t size);
 
 protected:
-    ClientPacketManager& _pktmgr;
+    ClientPacketManager* _pktmgr;
     SocksVersion::Value _ver;
     bool _is_v4a;
     Phrase::Value _phrase;
@@ -110,8 +111,7 @@ protected:
     in_addr _addr;
     std::string _domain;
 
-    virtual int GetId() override { return _client->GetId(); }
-    virtual void OnPacket(BasePacket* packet) override;
+    bool OnPacket(BasePacket* packet);
 
 private:
     void OnConnectPacket(ConnectRespondPacket* pkt);

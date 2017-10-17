@@ -8,45 +8,28 @@
 
 
 namespace taosocks {
-ClientPacketManager::ClientPacketManager(IOCP& ios, Dispatcher & disp)
-    : _disp(disp)
-    , _ios(ios)
-    , _seq(0)
+ClientPacketManager::ClientPacketManager()
+    : _seq(0)
+    , _worker(-1)
 {
     LogLog("创建客户端包管理器");
-}
 
-void ClientPacketManager::StartActive()
-{
-    ::UuidCreate(&_guid);
+    _worker.OnConnect([this](ClientSocket*, bool connected) {
+        return _OnConnect(connected);
+    });
 
-    LogLog("主动打开");
+    _worker.OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
+        return _OnRead(data, size);
+    });
 
-    for(int i = 0; i < 1; i++) {
-        auto client = new ClientSocket(i, _ios, _disp);
-        client->OnConnect([this](ClientSocket* c, bool connected) {
-            LogLog("已连接到服务端");
-            _clients.push_back(c);
-            c->Read();
-        });
+    _worker.OnWrite([this](ClientSocket*, size_t size) {
+        return _OnWrite();
+    });
 
-        client->OnRead([this](ClientSocket* c, unsigned char* data, size_t size) {
-            return OnRead(c, data, size);
-        });
+    _worker.OnClose([this](ClientSocket* c, CloseReason::Value reason) {
+        return _OnClose(reason);
+    });
 
-        client->OnWrite([](ClientSocket* c, size_t size) {
-            // LogLog("发送数据 size=%d", size);
-        });
-
-        client->OnClose([this](ClientSocket* c, CloseReason::Value reason) {
-            LogLog("与服务端断开连接");
-        });
-
-        in_addr addr;
-        // addr.S_un.S_addr = ::inet_addr("47.52.128.226");
-        addr.S_un.S_addr = ::inet_addr("127.0.0.1");
-        client->Connect(addr, 8081);
-    }
 }
 
 void ClientPacketManager::Send(BasePacket* pkt)
@@ -54,55 +37,78 @@ void ClientPacketManager::Send(BasePacket* pkt)
     assert(pkt != nullptr);
     std::memcpy(&pkt->__guid, &_guid, sizeof(GUID));
     pkt->__seq = ++_seq;
-    _packets.push_back(pkt);
-    Schedule();
-}
-
-void ClientPacketManager::Schedule()
-{
-    if(_packets.empty()) {
-        return;
+    _packet = pkt;
+    if(!_worker.IsClosed()) {
+        _worker.Write((char*)pkt, pkt->__size, nullptr);
+        LogLog("发送数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d",
+            _worker.GetId(),
+            pkt->__sid, pkt->__cid,
+            pkt->__seq, pkt->__cmd, pkt->__size);
     }
-
-    assert(!_clients.empty());
-
-    auto pkt = _packets.front();
-    _packets.pop_front();
-
-    auto index = std::rand() % _clients.size();
-    auto client = _clients[index];
-
-    client->Write((char*)pkt, pkt->__size, nullptr);
-    LogLog("发送数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
+    else {
+        _Connect();
+    }
 }
 
-void ClientPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
+void ClientPacketManager::_OnRead(unsigned char* data, size_t size)
 {
-    auto& recv_data = _recv_data[client];
+    auto& recv_data = _recv_data;
     recv_data.append(data, size);
 
+    auto more = true;
+
     for(BasePacket* bpkt; (bpkt = recv_data.try_cast<BasePacket>()) != nullptr && (int)recv_data.size() >= bpkt->__size;) {
-        LogLog("收到数据包(%d) sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), bpkt->__sid, bpkt->__cid, bpkt->__seq, bpkt->__cmd, bpkt->__size);
+        LogLog("收到数据包(%d) sid=%d, cid=%d, seq=%d, cmd=%d, size=%d",
+            _worker.GetId(), bpkt->__sid, bpkt->__cid, bpkt->__seq, bpkt->__cmd, bpkt->__size);
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
-        auto handler = _handlers.find(pkt->__cid);
-        if(handler == _handlers.cend()) {
-            LogWrn("包没有处理器，丢弃。");
-        }
-        else {
-            handler->second->OnPacket(pkt);
-        }
+        assert(OnPacketRead);
+        more = OnPacketRead(pkt);
     }
 
-    client->Read();
+    if(more) {
+        _worker.Read();
+    }
+}
+
+void ClientPacketManager::_OnWrite()
+{
+    assert(OnPacketSent);
+    return OnPacketSent();
+}
+
+void ClientPacketManager::_OnConnect(bool connected)
+{
+    if(!connected) {
+        assert(OnError);
+        OnError();
+    }
+
+    assert(OnPacketSent);
+    OnPacketSent();
+}
+
+void ClientPacketManager::_OnClose(CloseReason::Value reason)
+{
+    if(reason == CloseReason::Passively || reason == CloseReason::Reset) {
+        _worker.Close();
+        _Connect();
+    }
+}
+
+void ClientPacketManager::_Connect()
+{
+    if(_worker.IsClosed()) {
+        in_addr addr;
+        addr.S_un.S_addr = ::inet_addr("127.0.0.1");
+        _worker.Connect(addr, 8081);
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////
 
-ServerPacketManager::ServerPacketManager(IOCP& ios, Dispatcher & disp)
-    : _disp(disp)
-    , _ios(ios)
-    , _seq(0)
+ServerPacketManager::ServerPacketManager()
+    : _seq(0)
 {
 }
 

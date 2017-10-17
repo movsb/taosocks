@@ -27,6 +27,9 @@ static const GUID providerGuid =
 TaoLogger g_taoLogger(providerGuid);
 #endif
 
+Dispatcher* g_disp;
+IOCP* g_ios;
+
 
 int main()
 {
@@ -34,21 +37,22 @@ int main()
     IOCP iocp;
     Dispatcher disp;
 
-    ServerSocket server(iocp, disp);
-    ClientPacketManager pktmgr(iocp, disp);
+    g_disp = &disp;
+    g_ios = &iocp;
+
+    ServerSocket server;
 
     server.OnAccept([&](ClientSocket* client) {
         LogLog("新的浏览器连接：id=%d", client->GetId());
-        auto ss = new SocksServer(pktmgr, client);
+        auto ss = new SocksServer(client);
         ss->OnSucceed = [&](SocksServer::ConnectionInfo& info) {
-            auto rc = new ClientRelayClient(&pktmgr, info.client, info.sid);
+            auto rc = new ClientRelayClient(info.pktmgr, info.client, info.sid);
         };
         ss->OnError = [](const std::string& e) {
             LogErr(e.c_str());
         };
     });
 
-    pktmgr.StartActive();
     server.Start(INADDR_ANY, 8080);
 
     return disp.Run();

@@ -10,8 +10,6 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
     , _local(local)
     , _sid(sid)
 {
-    _pktmgr->AddHandler(this);
-
     _local->Read();
 
     _local->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
@@ -31,7 +29,6 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
 
         }
         else if(reason == CloseReason::Passively || reason == CloseReason::Reset) {
-            _pktmgr->RemoveHandler(this);
             auto pkt = new DisconnectPacket;
             pkt->__size = sizeof(DisconnectPacket);
             pkt->__cmd = PacketCommand::Disconnect;
@@ -40,6 +37,18 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
             _pktmgr->Send(pkt);
         }
     });
+
+    _pktmgr->OnError = [this]() {
+        assert(0);
+    };
+
+    _pktmgr->OnPacketSent = [this]() {
+        _local->Read();
+    };
+
+    _pktmgr->OnPacketRead = [this](BasePacket* packet) {
+        return OnPacket(packet);
+    };
 }
 
 // 网站主动关闭连接
@@ -48,19 +57,13 @@ void ClientRelayClient::_OnRemoteDisconnect(DisconnectPacket * pkt)
     LogLog("收包：网站断开连接 sid=%d, cid=%d，浏览器当前状态：%s", _sid, _local->GetId(), _local->IsClosed() ? "已断开" : "未断开");
     if(!_local->IsClosed()) {
         _local->Close();
-        _pktmgr->RemoveHandler(this);
     }
     else {
         LogLog("已关闭, sid=%d, cid=%d", _sid, _local->GetId());
     }
 }
 
-int ClientRelayClient::GetId()
-{
-    return _local->GetId();
-}
-
-void ClientRelayClient::OnPacket(BasePacket * packet)
+bool ClientRelayClient::OnPacket(BasePacket * packet)
 {
     if(packet->__cmd == PacketCommand::Relay) {
         auto pkt = static_cast<RelayPacket*>(packet);
@@ -73,6 +76,8 @@ void ClientRelayClient::OnPacket(BasePacket * packet)
     else {
         assert(0 && "invalid packet");
     }
+
+    return true;
 }
 
 //////////////////////////////////////////////////////////////////////////
