@@ -66,7 +66,7 @@ bool ClientRelayClient::OnPacket(BasePacket * packet)
 {
     if(packet->__cmd == PacketCommand::Relay) {
         auto pkt = static_cast<RelayPacket*>(packet);
-        _local->Write(pkt->data, pkt->__size - sizeof(BasePacket), nullptr);
+        _local->Write(pkt->data, pkt->__size - sizeof(BasePacket));
     }
     else if(packet->__cmd == PacketCommand::Disconnect) {
         auto pkt = static_cast<DisconnectPacket*>(packet);
@@ -136,7 +136,7 @@ void ServerRelayClient::OnPacket(BasePacket * packet)
 {
     if(packet->__cmd == PacketCommand::Relay) {
         auto pkt = static_cast<RelayPacket*>(packet);
-        _remote->Write(pkt->data, pkt->__size - sizeof(BasePacket), nullptr);
+        _remote->Write(pkt->data, pkt->__size - sizeof(BasePacket));
     }
     else if(packet->__cmd == PacketCommand::Disconnect) {
         LogLog("收包：浏览器断开连接 sid=%d, cid=%d", packet->__sid, packet->__cid);

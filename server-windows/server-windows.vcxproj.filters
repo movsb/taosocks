@@ -42,6 +42,9 @@
     <ClCompile Include="..\relay_client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="connection_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\base_socket.h">
@@ -75,6 +78,9 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="..\data_window.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="connection_manager.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

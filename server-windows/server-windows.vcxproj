@@ -160,6 +160,7 @@
     <ClCompile Include="..\server_socket.cpp" />
     <ClCompile Include="..\thread_dispatcher.cpp" />
     <ClCompile Include="..\winsock_helper.cpp" />
+    <ClCompile Include="connection_manager.cpp" />
     <ClCompile Include="main.cc" />
   </ItemGroup>
   <ItemGroup>
@@ -173,6 +174,7 @@
     <ClInclude Include="..\server_socket.h" />
     <ClInclude Include="..\thread_dispatcher.h" />
     <ClInclude Include="..\winsock_helper.h" />
+    <ClInclude Include="connection_manager.h" />
     <ClInclude Include="packet_manager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

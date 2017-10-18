@@ -232,7 +232,7 @@ void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
         }
     });
 
-    auto ret = _client->Write((char*)data.data(), data.size(), nullptr);
+    auto ret = _client->Write((char*)data.data(), data.size());
     LogLog("SocksÓ¦´ð×´Ì¬£º%d,%d", ret.Succ(), ret.Code());
     assert(!ret.Fail());
 }

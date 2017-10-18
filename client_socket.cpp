@@ -52,18 +52,11 @@ WSARet ClientSocket::Connect(in_addr& addr, unsigned short port)
     }
     return ret;
 }
-WSARet ClientSocket::Write(const char * data, size_t size, void * tag)
-{
-    return Write((const unsigned char*)data, size, tag);
-}
-WSARet ClientSocket::Write(const char * data, void * tag)
-{
-    return Write(data, std::strlen(data), tag);
-}
-WSARet ClientSocket::Write(const unsigned char * data, size_t size, void * tag)
+
+WSARet ClientSocket::Write(const void* data, size_t size)
 {
     auto writeio = new WriteIOContext();
-    auto ret = writeio->Write(_fd, data, size);
+    auto ret = writeio->Write(_fd, (const unsigned char*)data, size);
     if(ret.Succ()) {
         // DWORD dwBytes;
         // auto r = writeio->GetResult(_fd, &dwBytes);
@@ -133,7 +126,9 @@ void ClientSocket::_OnWrite(WriteIOContext* io)
 void ClientSocket::_OnConnect(ConnectIOContext* io)
 {
     WSARet ret = io->GetResult(_fd);
-    _onConnect(this, ret.Succ());
+    auto connected = ret.Succ();
+    _flags &= ~Flags::Closed;
+    _onConnect(this, connected);
 }
 
 void ClientSocket::OnTask(BaseIOContext* bio)

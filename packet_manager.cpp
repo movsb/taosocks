@@ -29,7 +29,6 @@ ClientPacketManager::ClientPacketManager()
     _worker.OnClose([this](ClientSocket* c, CloseReason::Value reason) {
         return _OnClose(reason);
     });
-
 }
 
 void ClientPacketManager::Send(BasePacket* pkt)
@@ -39,7 +38,7 @@ void ClientPacketManager::Send(BasePacket* pkt)
     pkt->__seq = ++_seq;
     _packet = pkt;
     if(!_worker.IsClosed()) {
-        _worker.Write((char*)pkt, pkt->__size, nullptr);
+        _worker.Write((char*)pkt, pkt->__size);
         LogLog("发送数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d",
             _worker.GetId(),
             pkt->__sid, pkt->__cid,
@@ -82,10 +81,18 @@ void ClientPacketManager::_OnConnect(bool connected)
     if(!connected) {
         assert(OnError);
         OnError();
+        return;
     }
 
-    assert(OnPacketSent);
-    OnPacketSent();
+    _worker.Read();
+
+    if(_packet != nullptr) {
+        _worker.Write(_packet, _packet->__size);
+    }
+    else {
+        assert(OnPacketSent);
+        OnPacketSent();
+    }
 }
 
 void ClientPacketManager::_OnClose(CloseReason::Value reason)
@@ -180,7 +187,7 @@ void ServerPacketManager::Schedule()
     auto index = std::rand() % _clients.count(pkt->__guid);
     auto client = _clients[pkt->__guid][index];
 
-    client->Write((char*)pkt, pkt->__size, nullptr);
+    client->Write((char*)pkt, pkt->__size);
     LogLog("发送数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
 }
 

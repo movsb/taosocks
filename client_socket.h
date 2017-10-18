@@ -119,14 +119,13 @@ private:
         enum Value
         {
             Closed      = 1 << 0,
-            Connected   = 1 << 1,
         };
     };
 
 public:
     ClientSocket(int id)
         : BaseSocket(id)
-        , _flags(0)
+        , _flags(Flags::Closed)
     {
 
     }
@@ -163,9 +162,7 @@ public:
 
     WSARet Connect(in_addr & addr, unsigned short port);
     WSARet Read();
-    WSARet Write(const char* data, size_t size, void* tag);
-    WSARet Write(const char* data, void* tag);
-    WSARet Write(const unsigned char* data, size_t size, void* tag);
+    WSARet Write(const void* data, size_t size);
     void Close();
     bool IsClosed() const { return _flags & Flags::Closed; }
 
