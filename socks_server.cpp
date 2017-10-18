@@ -21,12 +21,15 @@ SocksServer::SocksServer(ClientSocket * client)
 
 
     _pktmgr = new ClientPacketManager();
+
     _pktmgr->OnError = [this]() {
         OnError("无法连接到服务器。");
     };
+
     _pktmgr->OnPacketRead = [this](BasePacket* packet) {
         return OnPacket(packet);
     };
+
     _pktmgr->OnPacketSent = [this]() {
 
     };

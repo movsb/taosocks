@@ -13,14 +13,13 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
     _local->Read();
 
     _local->OnRead([this](ClientSocket*, unsigned char* data, size_t size) {
-        // LogLog("读取了 %d 字节", size);
         auto p = RelayPacket::Create(_sid, _local->GetId(), data, size);
         _pktmgr->Send(p);
         _local->Read();
     });
 
     _local->OnWrite([this](ClientSocket*, size_t size) {
-        // LogLog("写入了 %d 字节", size);
+
     });
 
     _local->OnClose([this](ClientSocket*, CloseReason::Value reason) {

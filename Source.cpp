@@ -1,7 +1,5 @@
-
 #include <cassert>
 
-#include <iostream>
 #include <string>
 #include <cstring>
 #include <functional>
@@ -12,7 +10,6 @@
 #include "thread_dispatcher.h"
 #include "server_socket.h"
 #include "client_socket.h"
-#include "packet_manager.h"
 #include "relay_client.h"
 
 #include "log.h"

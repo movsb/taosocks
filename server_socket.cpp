@@ -29,7 +29,7 @@ void ServerSocket::OnAccept(std::function<void(ClientSocket*)> onAccepted)
     _onAccepted = onAccepted;
 }
 
-void ServerSocket::_OnAccepted(AcceptIOContext* io)
+void ServerSocket::_OnAccept(AcceptIOContext* io)
 {
     SOCKADDR_IN *local, *remote;
     io->GetAddresses(&local, &remote);
@@ -46,16 +46,13 @@ void ServerSocket::_Accept()
         auto acceptio = new AcceptIOContext();
         auto ret = acceptio->Accept(_fd);
         if(ret.Succ()) {
-            // auto client = _OnAccepted(*acceptio);
-            // clients.push_back(client);
-            // LogLog("_Accept 立即完成：client fd:%d", client->GetDescriptor());
+
         }
         else if(ret.Fail()) {
             LogFat("_Accept 错误：code=%d", ret.Code());
             assert(0);
         }
         else if(ret.Async()) {
-            // LogLog("_Accept 异步");
             break;
         }
     }
@@ -64,7 +61,7 @@ void ServerSocket::_Accept()
 void ServerSocket::OnTask(BaseIOContext* bio)
 {
     if(bio->optype == OpType::Accept) {
-        _OnAccepted(static_cast<AcceptIOContext*>(bio));
+        _OnAccept(static_cast<AcceptIOContext*>(bio));
     }
 }
 

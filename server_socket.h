@@ -74,7 +74,7 @@ public:
 
     void OnAccept(std::function<void(ClientSocket*)> onAccepted);
 
-    void _OnAccepted(AcceptIOContext* io);
+    void _OnAccept(AcceptIOContext* io);
 
     void _Accept();
 
