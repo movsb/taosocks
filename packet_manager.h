@@ -73,6 +73,7 @@ class ClientPacketManager
 public:
     ClientPacketManager();
 
+    void Read();
     void Send(BasePacket* pkt);
 
     std::function<void()> OnPacketSent;

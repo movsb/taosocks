@@ -14,6 +14,8 @@ ClientPacketManager::ClientPacketManager()
 {
     LogLog("创建客户端包管理器");
 
+    ::UuidCreate(&_guid);
+
     _worker.OnConnect([this](ClientSocket*, bool connected) {
         return _OnConnect(connected);
     });
@@ -29,6 +31,11 @@ ClientPacketManager::ClientPacketManager()
     _worker.OnClose([this](ClientSocket* c, CloseReason::Value reason) {
         return _OnClose(reason);
     });
+}
+
+void ClientPacketManager::Read()
+{
+    _worker.Read();
 }
 
 void ClientPacketManager::Send(BasePacket* pkt)

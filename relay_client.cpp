@@ -48,6 +48,8 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
     _pktmgr->OnPacketRead = [this](BasePacket* packet) {
         return OnPacket(packet);
     };
+
+    _pktmgr->Read();
 }
 
 // 网站主动关闭连接
