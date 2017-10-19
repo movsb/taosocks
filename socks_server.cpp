@@ -131,8 +131,6 @@ void SocksServer::finish()
     auto p = new ConnectPacket;
     p->__cmd = PacketCommand::Connect;
     p->__size = sizeof(ConnectPacket);
-    p->__sid = -1;
-    p->__cid = (int)_client->GetId();
 
     auto& host = _domain;
     auto service = std::to_string(_port);
@@ -165,7 +163,7 @@ void SocksServer::_OnClientRead(unsigned char * data, size_t size)
 
     if(_phrase == Phrase::Finish) {
         assert(_recv.size() == 0);
-        LogLog("解析完成 cid=%d, domain=%s, port=%d", _client->GetId(), _domain.c_str(), _port);
+        LogLog("解析完成 domain=%s, port=%d", _domain.c_str(), _port);
         finish();
     }
     else {
@@ -213,8 +211,6 @@ void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
     _client->OnWrite([this, pkt](ClientSocket*, size_t) {
         if(pkt->code == 0) {
             ConnectionInfo info;
-            info.sid = pkt->__sid;
-            info.cid = pkt->__cid;
             info.addr = pkt->addr;
             info.port = pkt->port;
             info.client = _client;

@@ -22,26 +22,20 @@ private:
     ServerPacketManager* _pktmgr;
 
 private:
-    void _Respond(int code, int sid, int cid, GUID guid, unsigned int addr, unsigned short port);
+    void _Respond(int code, GUID guid, unsigned int addr, unsigned short port);
     void _OnConnectPacket(ConnectPacket* pkt);
-    void _OnResolve(int cid, GUID guid, unsigned int addr, unsigned short port);
+    void _OnResolve(GUID guid, unsigned int addr, unsigned short port);
 
 public:
     // Inherited via IPacketHandler
-    virtual int GetId() override;
+    virtual GUID GetId() override;
     virtual void OnPacket(BasePacket * packet) override;
 
     std::function<ClientSocket*()> OnCreateClient;
-    std::function<void(ClientSocket*, int cid, GUID guid)> OnSucceed;
+    std::function<void(ClientSocket*, GUID guid)> OnSucceed;
     std::function<void(ClientSocket*)> OnError;
 
-    struct Context
-    {
-        int cid;
-        GUID guid;
-    };
-
-    std::map<int, Context> _contexts;
+    std::map<ClientSocket*, GUID> _contexts;
 };
 
 class ClientRelayClient
@@ -63,19 +57,18 @@ private:
 class ServerRelayClient : public IPacketHandler
 {
 public:
-    ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* client, int cid, GUID guid);
+    ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* client, GUID guid);
 
 private:
     ClientSocket* _remote;
     ServerPacketManager* _pktmgr;
-    int _cid;
     GUID _guid;
 
 private:
     void _OnRemoteClose(CloseReason reason);
 
     // Inherited via IPacketHandler
-    virtual int GetId() override;
+    virtual GUID GetId() override { return _guid; }
     virtual void OnPacket(BasePacket * packet) override;
 };
 

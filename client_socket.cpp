@@ -15,14 +15,14 @@ void ClientSocket::Close(bool force)
             _flags &= ~Flags::MarkClose;
             _flags &= ~Flags::PendingRead;
             WSAIntRet ret = closesocket(_fd);
-            LogLog("关闭client, id=%d,ret=%d", GetId(), ret.Code());
+            LogLog("关闭client, ret=%d", ret.Code());
             assert(ret.Succ());
             assert(_onClose);
             _onClose(this, _close_reason);
         }
     }
     else {
-        LogWrn("早已关闭:id=%d", GetId());
+        LogWrn("早已关闭");
     }
 }
 void ClientSocket::OnRead(OnReadT onRead)
@@ -79,7 +79,7 @@ WSARet ClientSocket::Write(const void* data, size_t size)
     }
     else if(ret.Fail()) {
         if(!(_flags & Flags::MarkClose)) {
-            LogFat("写错误：id=%d,code=%d", GetId(), ret.Code());
+            LogFat("写错误：code=%d", ret.Code());
         }
         _flags |= Flags::MarkClose;
         _CloseIfNeeded();
@@ -107,7 +107,7 @@ WSARet ClientSocket::Read()
     }
     else if(ret.Fail()) {
         if(!(_flags & Flags::MarkClose)) {
-            LogFat("读错误：id=%d,code=%d", GetId(), ret.Code());
+            LogFat("读错误：code=%d", ret.Code());
         }
         _flags &= ~Flags::PendingRead;
         _flags |= Flags::MarkClose;
@@ -141,16 +141,16 @@ void ClientSocket::_OnRead(ReadIOContext* rio)
     }
     else {
         if(_flags & Flags::Closed) {
-            LogWrn("已主动关闭连接：id=%d", GetId());
+            LogWrn("已主动关闭连接");
             _OnReadFail(CloseReason::Actively);
         }
         else if(ret.Succ() && dwBytes == 0) {
-            LogWrn("已被动关闭连接：id:%d", GetId());
+            LogWrn("已被动关闭连接");
             _OnReadFail(CloseReason::Passively);
         }
         else if(ret.Fail()) {
             if(!(_flags & Flags::MarkClose)) {
-                LogFat("读失败：id=%d,code:%d", GetId(), ret.Code());
+                LogFat("读失败：code:%d", ret.Code());
             }
             _OnReadFail(CloseReason::Reset);
         }
@@ -169,7 +169,7 @@ void ClientSocket::_OnWrite(WriteIOContext* io)
     }
     else {
         if(!(_flags & Flags::MarkClose)) {
-            LogFat("写失败 id=%d, code=%d", GetId(), ret.Code());
+            LogFat("写失败 code=%d", ret.Code());
         }
         _flags |= Flags::MarkClose;
     }

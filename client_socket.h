@@ -127,8 +127,8 @@ private:
     };
 
 public:
-    ClientSocket(int id)
-        : BaseSocket(id)
+    ClientSocket()
+        : BaseSocket()
         , _flags(Flags::Closed)
         , _nPendingWrite(0)
         , _close_reason(CloseReason::Actively)
@@ -136,8 +136,8 @@ public:
 
     }
 
-    ClientSocket(int id, SOCKET fd, const SOCKADDR_IN& local, const SOCKADDR_IN& remote)
-        : BaseSocket(id, fd)
+    ClientSocket(SOCKET fd, const SOCKADDR_IN& local, const SOCKADDR_IN& remote)
+        : BaseSocket(fd)
         , _flags(0)
         , _local(local)
         , _remote(remote)

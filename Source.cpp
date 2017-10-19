@@ -40,7 +40,7 @@ int main()
     ServerSocket server;
 
     server.OnAccept([&](ClientSocket* client) {
-        LogLog("新的浏览器连接：id=%d", client->GetId());
+        LogLog("新的浏览器连接：");
         auto ss = new SocksServer(client);
         ss->OnSucceed = [&](SocksServer::ConnectionInfo& info) {
             auto rc = new ClientRelayClient(info.pktmgr, info.client, info.sid);

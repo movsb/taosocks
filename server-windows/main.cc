@@ -46,12 +46,12 @@ int main()
     pktmgr.AddHandler(&newrelay);
 
     newrelay.OnCreateClient = [&] {
-        auto c = new ClientSocket(server.GenId());
+        auto c = new ClientSocket();
         return c;
     };
 
-    newrelay.OnSucceed = [&](ClientSocket* client, int cid, GUID guid) {
-        auto rc = new ServerRelayClient(&pktmgr, client, cid, guid);
+    newrelay.OnSucceed = [&](ClientSocket* client, GUID guid) {
+        auto rc = new ServerRelayClient(&pktmgr, client, guid);
         pktmgr.AddHandler(rc);
     };
 

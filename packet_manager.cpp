@@ -10,7 +10,6 @@
 namespace taosocks {
 ClientPacketManager::ClientPacketManager()
     : _seq(0)
-    , _worker(-1)
 {
     LogLog("创建客户端包管理器");
 
@@ -46,10 +45,7 @@ void ClientPacketManager::Send(BasePacket* pkt)
     _packet = pkt;
     if(!_worker.IsClosed()) {
         _worker.Write((char*)pkt, pkt->__size);
-        LogLog("发送数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d",
-            _worker.GetId(),
-            pkt->__sid, pkt->__cid,
-            pkt->__seq, pkt->__cmd, pkt->__size);
+        LogLog("发送数据包：seq=%d, cmd=%d, size=%d", pkt->__seq, pkt->__cmd, pkt->__size);
     }
     else {
         _Connect();
@@ -64,8 +60,7 @@ void ClientPacketManager::_OnRead(unsigned char* data, size_t size)
     auto more = true;
 
     for(BasePacket* bpkt; (bpkt = recv_data.try_cast<BasePacket>()) != nullptr && (int)recv_data.size() >= bpkt->__size;) {
-        LogLog("收到数据包(%d) sid=%d, cid=%d, seq=%d, cmd=%d, size=%d",
-            _worker.GetId(), bpkt->__sid, bpkt->__cid, bpkt->__seq, bpkt->__cmd, bpkt->__size);
+        LogLog("收到数据包 seq=%d, cmd=%d, size=%d", bpkt->__seq, bpkt->__cmd, bpkt->__size);
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
         assert(OnPacketRead);
@@ -196,7 +191,7 @@ void ServerPacketManager::Schedule()
     auto client = _clients[pkt->__guid][index];
 
     client->Write((char*)pkt, pkt->__size);
-    LogLog("发送数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), pkt->__sid, pkt->__cid, pkt->__seq, pkt->__cmd, pkt->__size);
+    LogLog("发送数据包：seq=%d, cmd=%d, size=%d", pkt->__seq, pkt->__cmd, pkt->__size);
 }
 
 void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
@@ -209,11 +204,15 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
             _clients[bpkt->__guid].push_back(client);
         }
 
-        LogLog("收到数据包(%d)：sid=%d, cid=%d, seq=%d, cmd=%d, size=%d", client->GetId(), bpkt->__sid, bpkt->__cid, bpkt->__seq, bpkt->__cmd, bpkt->__size);
+        LogLog("收到数据包：seq=%d, cmd=%d, size=%d", bpkt->__seq, bpkt->__cmd, bpkt->__size);
 
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
-        auto handler = _handlers.find(pkt->__sid);
+        auto handler = _handlers.find(bpkt->__guid);
+        if(handler == _handlers.cend() && bpkt->__cmd == PacketCommand::Connect) {
+            static const GUID empty = {0};
+            handler = _handlers.find(empty);
+        }
         if(handler == _handlers.cend()) {
             LogWrn("包没有处理器，丢弃。");
         }

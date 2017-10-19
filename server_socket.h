@@ -63,7 +63,7 @@ struct ServerSocket: public BaseSocket
 
 public:
     ServerSocket()
-        : BaseSocket(-1)
+        : BaseSocket()
         , _next_id(0)
     {
     }

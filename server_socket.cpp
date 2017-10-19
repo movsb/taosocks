@@ -34,7 +34,7 @@ void ServerSocket::_OnAccept(AcceptIOContext* io)
     SOCKADDR_IN *local, *remote;
     io->GetAddresses(&local, &remote);
 
-    auto client = new ClientSocket(GenId(), io->fd, *local, *remote);
+    auto client = new ClientSocket(io->fd, *local, *remote);
     _onAccepted(client);
 
     _Accept();
