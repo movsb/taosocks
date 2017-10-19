@@ -120,7 +120,8 @@ private:
     {
         enum Value
         {
-            Closed      = 1 << 0,
+            Closed          = 1 << 0,
+            PendingRead     = 1 << 1,
         };
     };
 
@@ -171,6 +172,7 @@ public:
 private:
     void _OnRead(ReadIOContext* io);
     void _OnWrite(WriteIOContext* io);
+    void _OnClose(CloseReason reason);
     void _OnConnect(ConnectIOContext* io);
 
 

@@ -73,6 +73,10 @@ WSARet ClientSocket::Write(const void* data, size_t size)
 }
 WSARet ClientSocket::Read()
 {
+    assert(!IsClosed());
+    assert((_flags & Flags::PendingRead) == 0);
+    _flags |= Flags::PendingRead;
+
     auto readio = new ReadIOContext();
     auto ret = readio->Read(_fd);
     if(ret.Succ()) {
@@ -89,6 +93,7 @@ WSARet ClientSocket::Read()
 
 void ClientSocket::_OnRead(ReadIOContext* rio)
 {
+    _flags &= ~Flags::PendingRead;
     DWORD dwBytes = 0;
     WSARet ret = rio->GetResult(_fd, &dwBytes);
     if(ret.Succ() && dwBytes > 0) {
@@ -97,15 +102,15 @@ void ClientSocket::_OnRead(ReadIOContext* rio)
     else {
         if(_flags & Flags::Closed) {
             LogWrn("已主动关闭连接：id=%d", GetId());
-            _onClose(this, CloseReason::Actively);
+            _OnClose(CloseReason::Actively);
         }
         else if(ret.Succ() && dwBytes == 0) {
             LogWrn("已被动关闭连接：id:%d", GetId());
-            _onClose(this, CloseReason::Passively);
+            _OnClose(CloseReason::Passively);
         }
         else if(ret.Fail()) {
             LogFat("读失败：id=%d,code:%d", GetId(), ret.Code());
-            _onClose(this, CloseReason::Reset);
+            _OnClose(CloseReason::Reset);
         }
     }
 }
@@ -120,7 +125,17 @@ void ClientSocket::_OnWrite(WriteIOContext* io)
     }
     else {
         LogFat("写失败 id=%d, code=%d", GetId(), ret.Code());
+        LogLog("数据：%*s", io->wsabuf.len, io->wsabuf.buf);
     }
+}
+
+void ClientSocket::_OnClose(CloseReason reason)
+{
+    if(reason == CloseReason::Passively || reason == CloseReason::Reset) {
+        Close();
+    }
+    assert(_onClose);
+    _onClose(this, reason);
 }
 
 void ClientSocket::_OnConnect(ConnectIOContext* io)

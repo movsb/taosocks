@@ -79,6 +79,7 @@ void ClientPacketManager::_OnRead(unsigned char* data, size_t size)
 
 void ClientPacketManager::_OnWrite()
 {
+    _packet = nullptr;
     assert(OnPacketSent);
     return OnPacketSent();
 }

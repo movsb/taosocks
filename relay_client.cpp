@@ -42,7 +42,9 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
     };
 
     _pktmgr->OnPacketSent = [this]() {
-        _local->Read();
+        if(!_local->IsClosed()) {
+            _local->Read();
+        }
     };
 
     _pktmgr->OnPacketRead = [this](BasePacket* packet) {
