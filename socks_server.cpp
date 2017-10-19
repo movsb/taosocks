@@ -208,11 +208,15 @@ void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
         data.append(0);
     }
 
-    _client->OnWrite([this, pkt](ClientSocket*, size_t) {
-        if(pkt->code == 0) {
+    auto code = pkt->code;
+    auto addr = pkt->addr;
+    auto port = pkt->port;
+
+    _client->OnWrite([this,code,addr,port](ClientSocket*, size_t) {
+        if(code == 0) {
             ConnectionInfo info;
-            info.addr = pkt->addr;
-            info.port = pkt->port;
+            info.addr = addr;
+            info.port = port;
             info.client = _client;
             info.pktmgr = _pktmgr;
             assert(OnSucceed);

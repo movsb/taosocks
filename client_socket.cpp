@@ -156,6 +156,7 @@ void ClientSocket::_OnRead(ReadIOContext* rio)
             _OnReadFail(CloseReason::Reset);
         }
     }
+    delete rio;
 }
 
 void ClientSocket::_OnWrite(WriteIOContext* io)
@@ -175,6 +176,7 @@ void ClientSocket::_OnWrite(WriteIOContext* io)
         _flags |= Flags::MarkClose;
     }
     _CloseIfNeeded();
+    delete io;
 }
 
 void ClientSocket::_OnReadFail(CloseReason reason)
@@ -188,6 +190,7 @@ void ClientSocket::_OnReadFail(CloseReason reason)
 void ClientSocket::_OnConnect(ConnectIOContext* io)
 {
     WSARet ret = io->GetResult(_fd);
+    delete io;
     auto connected = ret.Succ();
     _flags &= ~Flags::Closed;
     _flags &= ~Flags::MarkClose;

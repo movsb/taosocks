@@ -65,6 +65,7 @@ void ClientPacketManager::_OnRead(unsigned char* data, size_t size)
         recv_data.get(pkt, bpkt->__size);
         assert(OnPacketRead);
         more = OnPacketRead(pkt);
+        delete pkt;
     }
 
     if(more) {
@@ -74,6 +75,7 @@ void ClientPacketManager::_OnRead(unsigned char* data, size_t size)
 
 void ClientPacketManager::_OnWrite()
 {
+    delete _packet;
     _packet = nullptr;
     assert(OnPacketSent);
     return OnPacketSent();
@@ -219,6 +221,7 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
         else {
             handler->second->OnPacket(pkt);
         }
+        delete pkt;
     }
 
     client->Read();

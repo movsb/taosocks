@@ -42,11 +42,13 @@ int main()
     server.OnAccept([&](ClientSocket* client) {
         LogLog("新的浏览器连接：");
         auto ss = new SocksServer(client);
-        ss->OnSucceed = [&](SocksServer::ConnectionInfo& info) {
+        ss->OnSucceed = [=](SocksServer::ConnectionInfo& info) {
             auto rc = new ClientRelayClient(info.pktmgr, info.client, info.sid);
+            delete ss;
         };
-        ss->OnError = [](const std::string& e) {
+        ss->OnError = [=](const std::string& e) {
             LogErr(e.c_str());
+            delete ss;
         };
     });
 
