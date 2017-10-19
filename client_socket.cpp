@@ -17,8 +17,9 @@ void ClientSocket::Close(bool force)
             WSAIntRet ret = closesocket(_fd);
             LogLog("¹Ø±Õclient, ret=%d", ret.Code());
             assert(ret.Succ());
-            assert(_onClose);
-            _onClose(this, _close_reason);
+            if(_onClose) {
+                _onClose(this, _close_reason);
+            }
         }
     }
     else {
