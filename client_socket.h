@@ -122,6 +122,7 @@ private:
         {
             Closed          = 1 << 0,
             PendingRead     = 1 << 1,
+            MarkClose       = 1 << 2,
         };
     };
 
@@ -129,6 +130,8 @@ public:
     ClientSocket(int id)
         : BaseSocket(id)
         , _flags(Flags::Closed)
+        , _nPendingWrite(0)
+        , _close_reason(CloseReason::Actively)
     {
 
     }
@@ -138,6 +141,8 @@ public:
         , _flags(0)
         , _local(local)
         , _remote(remote)
+        , _nPendingWrite(0)
+        , _close_reason(CloseReason::Actively)
     {
 
     }
@@ -156,6 +161,8 @@ private:
     OnConnectT _onConnect;
     DWORD _flags;
     std::list<ReadIOContext*> _read_queue;
+    int _nPendingWrite;
+    CloseReason _close_reason;
 
 public:
     void OnRead(OnReadT onRead);
@@ -166,13 +173,14 @@ public:
     WSARet Connect(in_addr & addr, unsigned short port);
     WSARet Read();
     WSARet Write(const void* data, size_t size);
-    void Close();
+    void Close(bool force);
     bool IsClosed() const { return _flags & Flags::Closed; }
 
 private:
+    void _CloseIfNeeded();
     void _OnRead(ReadIOContext* io);
     void _OnWrite(WriteIOContext* io);
-    void _OnClose(CloseReason reason);
+    void _OnReadFail(CloseReason reason);
     void _OnConnect(ConnectIOContext* io);
 
 

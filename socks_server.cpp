@@ -226,7 +226,7 @@ void SocksServer::OnConnectPacket(ConnectRespondPacket* pkt)
             // 应该等到socks应答数据写完再关闭
             // 如果立即写成功，那么对方会主动关闭
             // Read 会报告被动关闭
-            _client->Close();
+            _client->Close(true);
             assert(OnError);
             OnError("连接失败");
         }

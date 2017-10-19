@@ -56,7 +56,7 @@ int main()
     };
 
     newrelay.OnError = [&](ClientSocket* client) {
-        client->Close();
+        client->Close(true);
     };
 
     pktmgr.StartPassive();

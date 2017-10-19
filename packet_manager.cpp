@@ -106,7 +106,7 @@ void ClientPacketManager::_OnConnect(bool connected)
 void ClientPacketManager::_OnClose(CloseReason reason)
 {
     if(reason == CloseReason::Passively || reason == CloseReason::Reset) {
-        _worker.Close();
+        _worker.Close(true);
         _Connect();
     }
 }
