@@ -17,7 +17,7 @@ SocksServer::SocksServer(ClientSocket * client)
 
     _client->OnRead([this](ClientSocket*, unsigned char* data, size_t size) { return _OnClientRead(data, size); });
     _client->OnWrite([this](ClientSocket*, size_t) {});
-    _client->OnClose([this](ClientSocket*, CloseReason::Value reason) {return _OnClientClose(reason); });
+    _client->OnClose([this](ClientSocket*, CloseReason reason) {return _OnClientClose(reason); });
 
 
     _pktmgr = new ClientPacketManager();
@@ -146,7 +146,7 @@ void SocksServer::finish()
     _pktmgr->Send(p);
 }
 
-void SocksServer::_OnClientClose(CloseReason::Value reason)
+void SocksServer::_OnClientClose(CloseReason reason)
 {
     if(reason = CloseReason::Actively) {
         LogLog("主动关闭连接");

@@ -84,7 +84,7 @@ protected:
     void _OnRead(unsigned char* data, size_t size);
     void _OnWrite();
     void _OnConnect(bool connected);
-    void _OnClose(CloseReason::Value reason);
+    void _OnClose(CloseReason reason);
 
 protected:
     void _Connect();

@@ -28,7 +28,7 @@ ClientPacketManager::ClientPacketManager()
         return _OnWrite();
     });
 
-    _worker.OnClose([this](ClientSocket* c, CloseReason::Value reason) {
+    _worker.OnClose([this](ClientSocket* c, CloseReason reason) {
         return _OnClose(reason);
     });
 }
@@ -102,7 +102,7 @@ void ClientPacketManager::_OnConnect(bool connected)
     }
 }
 
-void ClientPacketManager::_OnClose(CloseReason::Value reason)
+void ClientPacketManager::_OnClose(CloseReason reason)
 {
     if(reason == CloseReason::Passively || reason == CloseReason::Reset) {
         _worker.Close();
@@ -154,7 +154,7 @@ void ServerPacketManager::AddClient(ClientSocket* client)
 
     // 可能是掉线、可能是正常关闭
     // 掉线不清理网站连接，正常关闭要清理
-    client->OnClose([this](ClientSocket*, CloseReason::Value reason) {
+    client->OnClose([this](ClientSocket*, CloseReason reason) {
         if(reason == CloseReason::Actively) {
             LogLog("主动关闭连接，网站先断开");
             // 放在网站断开连接那儿去处理

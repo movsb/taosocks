@@ -103,13 +103,15 @@ struct ConnectIOContext : BaseIOContext
 
 }
 
-struct CloseReason {
+struct _CloseReason {
     enum Value {
         Actively,
         Passively,
         Reset,
     };
 };
+
+typedef _CloseReason::Value CloseReason;
 
 class ClientSocket: public BaseSocket
 {
@@ -141,7 +143,7 @@ public:
 
     typedef std::function<void(ClientSocket*, unsigned char*, size_t)> OnReadT;
     typedef std::function<void(ClientSocket*, size_t)> OnWriteT;
-    typedef std::function<void(ClientSocket*, CloseReason::Value reason)> OnCloseT;
+    typedef std::function<void(ClientSocket*, CloseReason reason)> OnCloseT;
     typedef std::function<void(ClientSocket*, bool)> OnConnectT;
 
 private:

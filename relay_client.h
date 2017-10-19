@@ -72,7 +72,7 @@ private:
     GUID _guid;
 
 private:
-    void _OnRemoteClose(CloseReason::Value reason);
+    void _OnRemoteClose(CloseReason reason);
 
     // Inherited via IPacketHandler
     virtual int GetId() override;

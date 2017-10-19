@@ -22,7 +22,7 @@ ClientRelayClient::ClientRelayClient(ClientPacketManager* pktmgr, ClientSocket* 
 
     });
 
-    _local->OnClose([this](ClientSocket*, CloseReason::Value reason) {
+    _local->OnClose([this](ClientSocket*, CloseReason reason) {
         LogLog("浏览器断开连接，理由：%d", reason);
         if(reason == CloseReason::Actively) {
 
@@ -103,13 +103,13 @@ ServerRelayClient::ServerRelayClient(ServerPacketManager* pktmgr, ClientSocket* 
         // LogLog("写入了 %d 字节", size);
     });
 
-    _remote->OnClose([this](ClientSocket*, CloseReason::Value reason) {
+    _remote->OnClose([this](ClientSocket*, CloseReason reason) {
         LogLog("网站断开连接 sid=%d, cid=%d", _remote->GetId(), _cid);
         _OnRemoteClose(reason);
     });
 }
 
-void ServerRelayClient::_OnRemoteClose(CloseReason::Value reason)
+void ServerRelayClient::_OnRemoteClose(CloseReason reason)
 {
     if(reason == CloseReason::Actively) {
         LogLog("浏览器请求断开连接 sid=%d, cid=%d", _remote->GetId(), _cid);

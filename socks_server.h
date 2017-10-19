@@ -97,7 +97,7 @@ protected:
     void finish();
 
 protected:
-    void _OnClientClose(CloseReason::Value reason);
+    void _OnClientClose(CloseReason reason);
     void _OnClientRead(unsigned char* data, size_t size);
 
 protected:
