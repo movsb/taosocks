@@ -153,6 +153,7 @@
   <ItemGroup>
     <ClCompile Include="base_socket.cpp" />
     <ClCompile Include="client_socket.cpp" />
+    <ClCompile Include="common\resolver.cpp" />
     <ClCompile Include="iocp_model.cpp" />
     <ClCompile Include="packet_manager.cpp" />
     <ClCompile Include="relay_client.cpp" />
@@ -165,6 +166,7 @@
   <ItemGroup>
     <ClInclude Include="base_socket.h" />
     <ClInclude Include="client_socket.h" />
+    <ClInclude Include="common\resolver.h" />
     <ClInclude Include="data_window.hpp" />
     <ClInclude Include="iocp_model.h" />
     <ClInclude Include="log.h" />

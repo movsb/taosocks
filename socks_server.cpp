@@ -12,7 +12,6 @@ SocksServer::SocksServer(ClientSocket * client)
 {
     assert(_client != nullptr);
 
-
     _client->Read();
 
     _client->OnRead([this](ClientSocket*, unsigned char* data, size_t size) { return _OnClientRead(data, size); });

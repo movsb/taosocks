@@ -154,18 +154,19 @@
   <ItemGroup>
     <ClCompile Include="..\base_socket.cpp" />
     <ClCompile Include="..\client_socket.cpp" />
+    <ClCompile Include="..\common\resolver.cpp" />
     <ClCompile Include="..\iocp_model.cpp" />
     <ClCompile Include="..\packet_manager.cpp" />
     <ClCompile Include="..\relay_client.cpp" />
     <ClCompile Include="..\server_socket.cpp" />
     <ClCompile Include="..\thread_dispatcher.cpp" />
     <ClCompile Include="..\winsock_helper.cpp" />
-    <ClCompile Include="connection_manager.cpp" />
     <ClCompile Include="main.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\base_socket.h" />
     <ClInclude Include="..\client_socket.h" />
+    <ClInclude Include="..\common\resolver.h" />
     <ClInclude Include="..\data_window.hpp" />
     <ClInclude Include="..\iocp_model.h" />
     <ClInclude Include="..\log.h" />
@@ -174,7 +175,6 @@
     <ClInclude Include="..\server_socket.h" />
     <ClInclude Include="..\thread_dispatcher.h" />
     <ClInclude Include="..\winsock_helper.h" />
-    <ClInclude Include="connection_manager.h" />
     <ClInclude Include="packet_manager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

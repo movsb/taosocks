@@ -63,9 +63,10 @@ struct ServerSocket: public BaseSocket
 
 public:
     ServerSocket()
-        : BaseSocket()
+        : BaseSocket(INVALID_SOCKET)
         , _next_id(0)
     {
+        BaseSocket::CreateSocket();
     }
     
     void Start(ULONG ip, USHORT port);

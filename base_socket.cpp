@@ -5,8 +5,11 @@ namespace base_socket {
 
 void BaseSocket::CreateSocket()
 {
+    assert(_fd == INVALID_SOCKET);
     _fd = ::WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
     assert(_fd != INVALID_SOCKET);
+    extern IOCP* g_ios;
+    g_ios->Attach(this);
 }
 
 void BaseSocket::OnDispatch(void* data)

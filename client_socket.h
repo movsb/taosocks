@@ -128,7 +128,7 @@ private:
 
 public:
     ClientSocket()
-        : BaseSocket()
+        : BaseSocket(INVALID_SOCKET)
         , _flags(Flags::Closed)
         , _nPendingWrite(0)
         , _close_reason(CloseReason::Actively)

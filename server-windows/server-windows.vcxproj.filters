@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\common">
+      <UniqueIdentifier>{8fe93fb1-64fa-4caf-a8db-1293c6cd8687}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\base_socket.cpp">
@@ -42,8 +45,8 @@
     <ClCompile Include="..\relay_client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="connection_manager.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\common\resolver.cpp">
+      <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -80,8 +83,8 @@
     <ClInclude Include="..\data_window.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="connection_manager.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="..\common\resolver.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

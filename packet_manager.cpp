@@ -3,6 +3,7 @@
 #include <ctime>
 #include <process.h>
 
+#include "common/resolver.h"
 #include "packet_manager.h"
 #include "log.h"
 
@@ -113,6 +114,7 @@ void ClientPacketManager::_Connect()
     if(_worker.IsClosed()) {
         in_addr addr;
         addr.S_un.S_addr = ::inet_addr("127.0.0.1");
+        // addr.S_un.S_addr = ::inet_addr("47.52.128.226");
         _worker.Connect(addr, 8081);
     }
 }
@@ -122,11 +124,6 @@ void ClientPacketManager::_Connect()
 ServerPacketManager::ServerPacketManager()
     : _seq(0)
 {
-}
-
-void ServerPacketManager::StartPassive()
-{
-    LogLog("被动打开");
 }
 
 void ServerPacketManager::Send(BasePacket* pkt)
@@ -210,21 +207,26 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
 
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
+
         auto handler = _handlers.find(bpkt->__guid);
-        if(handler == _handlers.cend() && bpkt->__cmd == PacketCommand::Connect) {
-            static const GUID empty = {0};
-            handler = _handlers.find(empty);
-        }
+
         if(handler == _handlers.cend()) {
-            LogWrn("包没有处理器，丢弃。");
+            if(bpkt->__cmd == PacketCommand::Connect) {
+                OnNew(client, static_cast<ConnectPacket*>(pkt));
+                client->Read();
+            }
+            else {
+                LogWrn("包没有处理器，丢弃。");
+                delete pkt;
+                client->Read();
+            }
         }
         else {
             handler->second->OnPacket(pkt);
+            delete pkt;
+            client->Read();
         }
-        delete pkt;
     }
-
-    client->Read();
 }
 
 }

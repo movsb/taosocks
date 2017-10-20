@@ -42,23 +42,6 @@ struct ConnectionStatus
 
 }
 
-#pragma pack(push,1)
-
-struct ConnectPacket : BasePacket
-{
-    char host[256];
-    char service[32];
-};
-
-struct ConnectRespondPacket : BasePacket
-{
-    int code;
-    unsigned long  addr;
-    unsigned short port;
-};
-
-#pragma pack(pop)
-
 class SocksServer
 {
 public:

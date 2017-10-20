@@ -9,6 +9,7 @@
 #include "client_socket.h"
 #include "packet_manager.h"
 #include "relay_client.h"
+#include "common/resolver.h"
 
 using namespace taosocks;
 
@@ -37,29 +38,60 @@ int main()
 
     ServerPacketManager pktmgr;
     ServerSocket server;
-    ConnectionHandler newrelay(&pktmgr);
 
     server.OnAccept([&](ClientSocket* client) {
         pktmgr.AddClient(client);
     });
 
-    pktmgr.AddHandler(&newrelay);
+    pktmgr.OnNew = [&](ClientSocket* client, ConnectPacket* pkt) {
+        auto resolver = new Resolver();
+        resolver->OnError = [=, &pktmgr] {
+            auto cp = new ConnectRespondPacket();
+            cp->__cmd = PacketCommand::Connect;
+            cp->__guid = pkt->__guid;
+            cp->__seq = 0;
+            cp->__size = sizeof(ConnectRespondPacket);
+            cp->code = 1;
+            cp->addr = 0;
+            cp->port = 0;
+            pktmgr.Send(cp);
 
-    newrelay.OnCreateClient = [&] {
-        auto c = new ClientSocket();
-        return c;
+            delete cp;
+            delete pkt;
+            delete resolver;
+        };
+
+        resolver->OnSuccess = [=,&pktmgr](unsigned int addr, unsigned short port) {
+            auto remote = new ClientSocket();
+            remote->OnConnect([=, &pktmgr](ClientSocket*, bool connected) {
+                auto cp = new ConnectRespondPacket();
+                cp->__cmd = PacketCommand::Connect;
+                cp->__guid = pkt->__guid;
+                cp->__seq = 0;
+                cp->__size = sizeof(ConnectRespondPacket);
+                cp->code = connected ? 0 : 1;
+                cp->addr = addr;
+                cp->port = port;
+                pktmgr.Send(cp);
+
+                if(connected) {
+                    auto rc = new ServerRelayClient(&pktmgr, remote, pkt->__guid);
+                    pktmgr.AddHandler(rc);
+                }
+
+                delete cp;
+                delete pkt;
+                delete resolver;
+            });
+
+            in_addr a;
+            a.s_addr = ::htonl(addr);
+            remote->Connect(a, port);
+        };
+
+        resolver->Resolve(pkt->host, pkt->service);
     };
 
-    newrelay.OnSucceed = [&](ClientSocket* client, GUID guid) {
-        auto rc = new ServerRelayClient(&pktmgr, client, guid);
-        pktmgr.AddHandler(rc);
-    };
-
-    newrelay.OnError = [&](ClientSocket* client) {
-        client->Close(true);
-    };
-
-    pktmgr.StartPassive();
     server.Start(INADDR_ANY, 8081);
 
     return disp.Run();

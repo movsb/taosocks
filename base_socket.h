@@ -42,24 +42,18 @@ struct BaseIOContext
 class BaseSocket : private threading::IDispatcher, public iocp::ITaskHandler
 {
 public:
-    BaseSocket()
-    {
-        CreateSocket();
-        extern IOCP* g_ios;
-        g_ios->Attach(this);
-    }
-
     BaseSocket(SOCKET fd)
         : _fd(fd)
     {
-        extern IOCP* g_ios;
-        g_ios->Attach(this);
+        if(_fd != INVALID_SOCKET) {
+            extern IOCP* g_ios;
+            g_ios->Attach(this);
+        }
     }
 
     SOCKET GetSocket() { return _fd; }
     virtual HANDLE GetHandle() override;
 
-private:
     void CreateSocket();
 
 protected:

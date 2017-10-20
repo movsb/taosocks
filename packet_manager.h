@@ -52,6 +52,19 @@ struct RelayPacket : BasePacket
     }
 };
 
+struct ConnectPacket : BasePacket
+{
+    char host[256];
+    char service[32];
+};
+
+struct ConnectRespondPacket : BasePacket
+{
+    int code;
+    unsigned long  addr;
+    unsigned short port;
+};
+
 struct DisconnectPacket : BasePacket
 {
 
@@ -111,9 +124,9 @@ class ServerPacketManager
 public:
     ServerPacketManager();
 
-    void StartPassive();
-
     void Send(BasePacket* pkt);
+
+    std::function<void(ClientSocket* client, ConnectPacket* pkt)> OnNew;
 
     void AddHandler(IPacketHandler* handler)
     {

@@ -15,6 +15,7 @@ void ClientSocket::Close(bool force)
             _flags &= ~Flags::MarkClose;
             _flags &= ~Flags::PendingRead;
             WSAIntRet ret = closesocket(_fd);
+            _fd = INVALID_SOCKET;
             LogLog("关闭client, ret=%d", ret.Code());
             assert(ret.Succ());
             if(_onClose) {
@@ -44,6 +45,10 @@ void ClientSocket::OnConnect(OnConnectT onConnect)
 }
 WSARet ClientSocket::Connect(in_addr& addr, unsigned short port)
 {
+    assert(_fd == INVALID_SOCKET);
+
+    CreateSocket();
+
     sockaddr_in sai = {0};
     sai.sin_family = PF_INET;
     sai.sin_addr.S_un.S_addr = INADDR_ANY;
@@ -104,7 +109,7 @@ WSARet ClientSocket::Read()
     auto readio = new ReadIOContext();
     auto ret = readio->Read(_fd);
     if(ret.Succ()) {
-        LogLog("_Read 立即成功, fd:%d", _fd);
+        // LogLog("_Read 立即成功, fd:%d", _fd);
     }
     else if(ret.Fail()) {
         if(!(_flags & Flags::MarkClose)) {
@@ -115,7 +120,7 @@ WSARet ClientSocket::Read()
         _CloseIfNeeded();
     }
     else if(ret.Async()) {
-        LogLog("读异步 fd:%d", _fd);
+        // LogLog("读异步 fd:%d", _fd);
     }
     return ret;
 }

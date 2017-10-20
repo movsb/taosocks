@@ -9,35 +9,6 @@
 
 namespace taosocks {
 
-class ConnectionHandler : public IPacketHandler
-{
-public:
-    ConnectionHandler(ServerPacketManager* pktmgr)
-        : _pktmgr(pktmgr)
-    {
-
-    }
-
-private:
-    ServerPacketManager* _pktmgr;
-
-private:
-    void _Respond(int code, GUID guid, unsigned int addr, unsigned short port);
-    void _OnConnectPacket(ConnectPacket* pkt);
-    void _OnResolve(GUID guid, unsigned int addr, unsigned short port);
-
-public:
-    // Inherited via IPacketHandler
-    virtual GUID GetId() override;
-    virtual void OnPacket(BasePacket * packet) override;
-
-    std::function<ClientSocket*()> OnCreateClient;
-    std::function<void(ClientSocket*, GUID guid)> OnSucceed;
-    std::function<void(ClientSocket*)> OnError;
-
-    std::map<ClientSocket*, GUID> _contexts;
-};
-
 class ClientRelayClient
 {
 public:
