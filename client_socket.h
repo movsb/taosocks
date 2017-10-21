@@ -180,7 +180,6 @@ private:
     void _CloseIfNeeded();
     void _OnRead(ReadIOContext* io);
     void _OnWrite(WriteIOContext* io);
-    void _OnReadFail(CloseReason reason);
     void _OnConnect(ConnectIOContext* io);
 
 

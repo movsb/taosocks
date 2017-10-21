@@ -6,8 +6,8 @@ namespace taosocks {
 void ClientSocket::Close(bool force)
 {
     if(!(_flags & Flags::Closed)) {
-        if(!force && ((_flags & Flags::PendingRead) || _nPendingWrite > 0)) {
-            LogWrn("有挂起的读/写操作，不能立即关闭。");
+        if(!force && (_nPendingWrite > 0)) {
+            LogWrn("有挂起的写操作，不能立即关闭，有读？：%d", (_flags & Flags::PendingRead));
             _flags |= Flags::MarkClose;
         }
         else {
@@ -127,11 +127,12 @@ WSARet ClientSocket::Read()
 
 void ClientSocket::_CloseIfNeeded()
 {
-    if((_nPendingWrite <= 0)                // 写完了
+    if(
+        (_flags & Flags::MarkClose)         // 已被标记为关闭
+        && _nPendingWrite <= 0              // 写完了
         && !(_flags & Flags::PendingRead)   // 读完了
-        && (_flags & Flags::MarkClose)      // 已被标记为关闭
         && (!IsClosed())                    // 尚未关闭
-        )
+    )
     {
         Close(true);
     }
@@ -148,18 +149,21 @@ void ClientSocket::_OnRead(ReadIOContext* rio)
     else {
         if(_flags & Flags::Closed) {
             LogWrn("已主动关闭连接");
-            _OnReadFail(CloseReason::Actively);
+            _close_reason = CloseReason::Actively;
         }
         else if(ret.Succ() && dwBytes == 0) {
             LogWrn("已被动关闭连接");
-            _OnReadFail(CloseReason::Passively);
+            _close_reason = CloseReason::Passively;
         }
         else if(ret.Fail()) {
             if(!(_flags & Flags::MarkClose)) {
                 LogFat("读失败：code:%d", ret.Code());
             }
-            _OnReadFail(CloseReason::Reset);
+            _close_reason = CloseReason::Reset;
         }
+
+        _flags |= Flags::MarkClose;
+        _CloseIfNeeded();
     }
     delete rio;
 }
@@ -182,14 +186,6 @@ void ClientSocket::_OnWrite(WriteIOContext* io)
     }
     _CloseIfNeeded();
     delete io;
-}
-
-void ClientSocket::_OnReadFail(CloseReason reason)
-{
-    _close_reason = reason;
-    _flags |= Flags::MarkClose;
-
-    _CloseIfNeeded();
 }
 
 void ClientSocket::_OnConnect(ConnectIOContext* io)

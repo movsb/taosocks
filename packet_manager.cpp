@@ -46,7 +46,7 @@ void ClientPacketManager::Send(BasePacket* pkt)
     _packet = pkt;
     if(!_worker.IsClosed()) {
         _worker.Write((char*)pkt, pkt->__size);
-        LogLog("发送数据包：seq=%d, cmd=%d, size=%d", pkt->__seq, pkt->__cmd, pkt->__size);
+        LogLog("发送数据包 seq=%d, cmd=%d, size=%d", pkt->__seq, pkt->__cmd, pkt->__size);
     }
     else {
         _Connect();
@@ -104,6 +104,7 @@ void ClientPacketManager::_OnConnect(bool connected)
 void ClientPacketManager::_OnClose(CloseReason reason)
 {
     if(reason == CloseReason::Passively || reason == CloseReason::Reset) {
+        LogFat("与服务器连接断开，准备重连。");
         _worker.Close(true);
         _Connect();
     }
@@ -190,7 +191,7 @@ void ServerPacketManager::Schedule()
     auto client = _clients[pkt->__guid][index];
 
     client->Write((char*)pkt, pkt->__size);
-    LogLog("发送数据包：seq=%d, cmd=%d, size=%d", pkt->__seq, pkt->__cmd, pkt->__size);
+    LogLog("发送数据包 seq=%d, cmd=%d, size=%d", pkt->__seq, pkt->__cmd, pkt->__size);
 }
 
 void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size_t size)
@@ -203,7 +204,7 @@ void ServerPacketManager::OnRead(ClientSocket* client, unsigned char* data, size
             _clients[bpkt->__guid].push_back(client);
         }
 
-        LogLog("收到数据包：seq=%d, cmd=%d, size=%d", bpkt->__seq, bpkt->__cmd, bpkt->__size);
+        LogLog("收到数据包 seq=%d, cmd=%d, size=%d", bpkt->__seq, bpkt->__cmd, bpkt->__size);
 
         auto pkt = new (new char[bpkt->__size]) BasePacket;
         recv_data.get(pkt, bpkt->__size);
