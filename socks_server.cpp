@@ -103,6 +103,12 @@ void SocksServer::feed(const unsigned char * data, size_t size)
                 && _addr.S_un.S_un_b.s_b3 == 0
                 && _addr.S_un.S_un_b.s_b4 != 0;
 
+            if(!_is_v4a) {
+                char buf[INET_ADDRSTRLEN];
+                ::inet_ntop(AF_INET, &_addr, buf, _countof(buf));
+                _domain = buf;
+            }
+
             _phrase = _is_v4a ? Phrase::Domain : Phrase::Finish;
 
             break;
