@@ -226,7 +226,7 @@ void SocksServer::finish()
     p->__cmd = PacketCommand::Connect;
     p->__size = sizeof(ConnectPacket);
 
-    if(!_is_v4a || (_is_v5 && _addr_type == AddrType::IPv4)) {
+    if((!_is_v4a && !_is_v5) || (_is_v5 && _addr_type == AddrType::IPv4)) {
         char buf[INET_ADDRSTRLEN];
         ::inet_ntop(AF_INET, &_addr, buf, _countof(buf));
         _domain = buf;
