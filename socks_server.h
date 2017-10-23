@@ -21,7 +21,8 @@ struct SocksVersion
 struct AuthMethod
 {
     enum Value {
-        NoAuth  = 0x00,
+        NoAuth      = 0x00,
+        NotOffered  = 0xFF,
     };
 };
 
@@ -32,11 +33,27 @@ struct SocksCommand
     };
 };
 
-struct ConnectionStatus
+struct AddrType
+{
+    enum Value {
+        IPv4        = 0x01,
+        Domain      = 0x03,
+    };
+};
+
+struct ConnectionStatus_v4
 {
     enum Value {
         Success     = 0x5A,
         Fail        = 0x5B,
+    };
+};
+
+struct ConnectionStatus_v5
+{
+    enum Value {
+        Success     = 0x00,
+        Fail        = 0x01,
     };
 };
 
@@ -60,7 +77,12 @@ private:
     {
         enum Value {
             Init,
+            Init_v5_conn,
+            AuthMethods,
             Command,
+            Reserved_v5_1,
+            AddrType,
+            Addr_v5,
             Port,
             Addr,
             Domain,
@@ -87,6 +109,8 @@ protected:
     ClientPacketManager* _pktmgr;
     SocksVersion::Value _ver;
     bool _is_v4a;
+    bool _is_v5;
+    AddrType::Value _addr_type;
     Phrase::Value _phrase;
     ClientSocket* _client;
     DataWindow _recv;

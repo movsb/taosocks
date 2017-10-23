@@ -52,6 +52,12 @@ public:
         _dat = nullptr;
     }
 
+    void drop(size_t n)
+    {
+        check_size(0, n);
+        _beg += n;
+    }
+
     void get(void* p, size_t n)
     {
         check_size(0, n);
@@ -59,9 +65,14 @@ public:
         _beg += n;
     }
 
-    void* data() const
+    unsigned char* data() const
     {
         return _dat + _beg;
+    }
+
+    unsigned char operator[](size_t n)
+    {
+        return peek_byte(n);
     }
 
     unsigned char get_byte()
@@ -191,41 +202,6 @@ private:
     size_t _cap;
     unsigned char* _dat;
 };
-
-/*
-int main()
-{
-    DataWindow dw(16);
-
-    assert(dw.size() == 0);
-
-    dw.append((unsigned char*)"asdf", 4);
-    assert(dw.size() == 4);
-
-    assert(dw.index_char('d') == 2);
-    assert(dw.index_char('x') == -1);
-
-    dw.append((unsigned char*)"asdf", 4);
-    assert(dw.size() == 8);
-
-    assert(dw.peek_byte(0) == 'a');
-    assert(dw.peek_byte(3) == 'f');
-
-    assert(dw.get_int() == 'fdsa');
-    assert(dw.size() == 4);
-
-    assert(dw.get_byte() == 'a');
-    assert(dw.peek_short(0) == 'ds');
-
-    dw.clear();
-    dw.append((unsigned char*)"01234567890123456789", 20);
-
-    assert(dw.get_string(10) == "0123456789");
-    assert(dw.size() == 10);
-
-    dw.append((unsigned char*)"01234567890123456789123", 23);
-}
-*/
 
 }
 
