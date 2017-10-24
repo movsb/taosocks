@@ -23,7 +23,7 @@ void ClientSocket::Close(bool force)
         }
     }
     else {
-        LogWrn("早已关闭");
+        LogWrn("在已关闭的套接字上执行关闭操作。");
     }
 }
 void ClientSocket::OnRead(OnReadT onRead)
@@ -44,7 +44,10 @@ void ClientSocket::OnConnect(OnConnectT onConnect)
 }
 WSARet ClientSocket::Connect(in_addr& addr, unsigned short port)
 {
-    assert(_fd == INVALID_SOCKET);
+    if(_fd != INVALID_SOCKET) {
+        assert(_fd == INVALID_SOCKET);
+        return WSABoolRet(FALSE);
+    }
 
     CreateSocket();
 
@@ -73,14 +76,19 @@ WSARet ClientSocket::Connect(in_addr& addr, unsigned short port)
 
 WSARet ClientSocket::Write(const void* data, size_t size)
 {
+    if(_flags.test(Flags::Closed)) {
+        LogFat("在已关闭的套接字上写。");
+        return WSABoolRet(FALSE);
+    }
+
     _nPendingWrite++;
 
     auto writeio = new WriteIOContext();
     auto ret = writeio->Write(_fd, (const unsigned char*)data, size);
     if(ret.Succ()) {
-        // DWORD dwBytes;
-        // auto r = writeio->GetResult(_fd, &dwBytes);
-        // assert(r && dwBytes == size);
+        DWORD dwBytes;
+        auto r = writeio->GetResult(_fd, &dwBytes);
+        assert(r && dwBytes == size);
         // LogLog("写立即成功，fd=%d,size=%d", _fd, size);
     }
     else if(ret.Fail()) {
@@ -99,9 +107,13 @@ WSARet ClientSocket::Write(const void* data, size_t size)
 }
 WSARet ClientSocket::Read()
 {
-    assert(!IsClosed());
     if(_flags.test(Flags::PendingRead)) {
         LogFat("不能多次读。");
+        return WSABoolRet(FALSE);
+    }
+
+    if(_flags.test(Flags::Closed)) {
+        LogFat("在已关闭的套接字上读。");
         return WSABoolRet(FALSE);
     }
 
@@ -204,12 +216,7 @@ void ClientSocket::OnTask(BaseIOContext* bio)
     case OpType::Read:
     {
         auto rio = static_cast<ReadIOContext*>(bio);
-        if(_onRead == nullptr) {
-            _read_queue.push_back(rio);
-        }
-        else {
-            _OnRead(rio);
-        }
+        _OnRead(rio);
         break;
     }
     case OpType::Write:

@@ -104,15 +104,11 @@ struct ConnectIOContext : BaseIOContext
 
 }
 
-struct _CloseReason {
-    enum Value {
-        Actively,
-        Passively,
-        Reset,
-    };
+enum class CloseReason {
+    Actively,
+    Passively,
+    Reset,
 };
-
-typedef _CloseReason::Value CloseReason;
 
 class ClientSocket: public BaseSocket
 {
@@ -158,7 +154,6 @@ private:
     OnCloseT _onClose;
     OnConnectT _onConnect;
     FlagsType _flags;
-    std::list<ReadIOContext*> _read_queue;
     int _nPendingWrite;
     CloseReason _close_reason;
 

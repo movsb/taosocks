@@ -248,7 +248,7 @@ void SocksServer::finish()
 
 void SocksServer::_OnClientClose(CloseReason reason)
 {
-    if(reason = CloseReason::Actively) {
+    if(reason == CloseReason::Actively) {
         LogLog("主动关闭连接");
     }
     else if(reason == CloseReason::Passively) {
