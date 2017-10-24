@@ -89,6 +89,8 @@ int main()
             remote->Connect(a, port);
         };
 
+        pkt->revert();
+
         resolver->Resolve(pkt->host, pkt->service);
     };
 

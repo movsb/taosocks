@@ -241,6 +241,8 @@ void SocksServer::finish()
     std::strcpy(p->host, host.c_str());
     std::strcpy(p->service, service.c_str());
 
+    p->revert();
+
     _pktmgr->Send(p);
 }
 

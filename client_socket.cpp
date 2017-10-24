@@ -74,6 +74,8 @@ WSARet ClientSocket::Connect(in_addr& addr, unsigned short port)
 
 WSARet ClientSocket::Write(const void* data, size_t size)
 {
+    _nPendingWrite++;
+
     auto writeio = new WriteIOContext();
     auto ret = writeio->Write(_fd, (const unsigned char*)data, size);
     if(ret.Succ()) {
@@ -81,9 +83,10 @@ WSARet ClientSocket::Write(const void* data, size_t size)
         // auto r = writeio->GetResult(_fd, &dwBytes);
         // assert(r && dwBytes == size);
         // LogLog("–¥¡¢º¥≥…π¶£¨fd=%d,size=%d", _fd, size);
-        _nPendingWrite++;
     }
     else if(ret.Fail()) {
+        _nPendingWrite--;
+
         if(!(_flags & Flags::MarkClose)) {
             LogFat("–¥¥ÌŒÛ£∫code=%d", ret.Code());
         }
@@ -91,7 +94,6 @@ WSARet ClientSocket::Write(const void* data, size_t size)
         _CloseIfNeeded();
     }
     else if(ret.Async()) {
-        _nPendingWrite++;
         // LogLog("–¥“Ï≤Ω£¨fd=%d", _fd);
     }
     return ret;

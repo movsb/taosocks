@@ -56,6 +56,13 @@ struct ConnectPacket : BasePacket
 {
     char host[256];
     char service[32];
+
+    void revert()
+    {
+        for(int i = 0; i < sizeof(host); i += 2) {
+            host[i] ^= 0xff;
+        }
+    }
 };
 
 struct ConnectRespondPacket : BasePacket
