@@ -4,6 +4,7 @@
 #include <list>
 #include <functional>
 
+#include "common/flags.hpp"
 #include "base_socket.h"
 
 namespace taosocks {
@@ -116,29 +117,26 @@ typedef _CloseReason::Value CloseReason;
 class ClientSocket: public BaseSocket
 {
 private:
-    struct Flags
+    enum class Flags
     {
-        enum Value
-        {
-            Closed          = 1 << 0,
-            PendingRead     = 1 << 1,
-            MarkClose       = 1 << 2,
-        };
+        Closed          = 1 << 0,
+        PendingRead     = 1 << 1,
+        MarkClose       = 1 << 2,
     };
+
+    typedef BaseFlags<Flags> FlagsType;
 
 public:
     ClientSocket()
         : BaseSocket(INVALID_SOCKET)
-        , _flags(Flags::Closed)
         , _nPendingWrite(0)
         , _close_reason(CloseReason::Actively)
     {
-
+        _flags.set(Flags::Closed);
     }
 
     ClientSocket(SOCKET fd, const SOCKADDR_IN& local, const SOCKADDR_IN& remote)
         : BaseSocket(fd)
-        , _flags(0)
         , _local(local)
         , _remote(remote)
         , _nPendingWrite(0)
@@ -159,7 +157,7 @@ private:
     OnWriteT _onWrite;
     OnCloseT _onClose;
     OnConnectT _onConnect;
-    DWORD _flags;
+    FlagsType _flags;
     std::list<ReadIOContext*> _read_queue;
     int _nPendingWrite;
     CloseReason _close_reason;
@@ -174,7 +172,7 @@ public:
     WSARet Read();
     WSARet Write(const void* data, size_t size);
     void Close(bool force);
-    bool IsClosed() const { return _flags & Flags::Closed; }
+    bool IsClosed() const { return _flags.test(Flags::Closed); }
 
 private:
     void _CloseIfNeeded();

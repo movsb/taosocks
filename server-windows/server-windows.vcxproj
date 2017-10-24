@@ -166,6 +166,7 @@
   <ItemGroup>
     <ClInclude Include="..\base_socket.h" />
     <ClInclude Include="..\client_socket.h" />
+    <ClInclude Include="..\common\flags.hpp" />
     <ClInclude Include="..\common\resolver.h" />
     <ClInclude Include="..\data_window.hpp" />
     <ClInclude Include="..\iocp_model.h" />

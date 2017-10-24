@@ -5,15 +5,14 @@
 namespace taosocks {
 void ClientSocket::Close(bool force)
 {
-    if(!(_flags & Flags::Closed)) {
+    if(!_flags.test(Flags::Closed)) {
         if(!force && (_nPendingWrite > 0)) {
-            LogWrn("有挂起的写操作，不能立即关闭，有读？：%d", (_flags & Flags::PendingRead));
-            _flags |= Flags::MarkClose;
+            LogWrn("有挂起的写操作，不能立即关闭，有读？：%d", _flags.test(Flags::PendingRead));
+            _flags.set(Flags::MarkClose);
         }
         else {
-            _flags |= Flags::Closed;
-            _flags &= ~Flags::MarkClose;
-            _flags &= ~Flags::PendingRead;
+            _flags.set(Flags::Closed);
+            _flags.clear(Flags::MarkClose, Flags::PendingRead);
             WSAIntRet ret = closesocket(_fd);
             _fd = INVALID_SOCKET;
             LogLog("关闭client, ret=%d", ret.Code());
@@ -87,10 +86,10 @@ WSARet ClientSocket::Write(const void* data, size_t size)
     else if(ret.Fail()) {
         _nPendingWrite--;
 
-        if(!(_flags & Flags::MarkClose)) {
+        if(!_flags.test(Flags::MarkClose)) {
             LogFat("写错误：code=%d", ret.Code());
         }
-        _flags |= Flags::MarkClose;
+        _flags.set(Flags::MarkClose);
         _CloseIfNeeded();
     }
     else if(ret.Async()) {
@@ -101,12 +100,12 @@ WSARet ClientSocket::Write(const void* data, size_t size)
 WSARet ClientSocket::Read()
 {
     assert(!IsClosed());
-    if((_flags & Flags::PendingRead) != 0) {
+    if(_flags.test(Flags::PendingRead)) {
         LogFat("不能多次读。");
         return WSABoolRet(FALSE);
     }
 
-    _flags |= Flags::PendingRead;
+    _flags.set(Flags::PendingRead);
 
     auto readio = new ReadIOContext();
     auto ret = readio->Read(_fd);
@@ -114,11 +113,11 @@ WSARet ClientSocket::Read()
         // LogLog("_Read 立即成功, fd:%d", _fd);
     }
     else if(ret.Fail()) {
-        if(!(_flags & Flags::MarkClose)) {
+        if(!_flags.test(Flags::MarkClose)) {
             LogFat("读错误：code=%d", ret.Code());
         }
-        _flags &= ~Flags::PendingRead;
-        _flags |= Flags::MarkClose;
+        _flags.clear(Flags::PendingRead);
+        _flags.set(Flags::MarkClose);
         _CloseIfNeeded();
     }
     else if(ret.Async()) {
@@ -130,9 +129,9 @@ WSARet ClientSocket::Read()
 void ClientSocket::_CloseIfNeeded()
 {
     if(
-        (_flags & Flags::MarkClose)         // 已被标记为关闭
+        (_flags.test(Flags::MarkClose))     // 已被标记为关闭
         && _nPendingWrite <= 0              // 写完了
-        && !(_flags & Flags::PendingRead)   // 读完了
+        && !_flags.test(Flags::PendingRead) // 读完了
         && (!IsClosed())                    // 尚未关闭
     )
     {
@@ -142,14 +141,14 @@ void ClientSocket::_CloseIfNeeded()
 
 void ClientSocket::_OnRead(ReadIOContext* rio)
 {
-    _flags &= ~Flags::PendingRead;
+    _flags.clear(Flags::PendingRead);
     DWORD dwBytes = 0;
     WSARet ret = rio->GetResult(_fd, &dwBytes);
     if(ret.Succ() && dwBytes > 0) {
         _onRead(this, rio->buf, dwBytes);
     }
     else {
-        if(_flags & Flags::Closed) {
+        if(_flags.test(Flags::Closed)) {
             LogWrn("已主动关闭连接");
             _close_reason = CloseReason::Actively;
         }
@@ -158,13 +157,13 @@ void ClientSocket::_OnRead(ReadIOContext* rio)
             _close_reason = CloseReason::Passively;
         }
         else if(ret.Fail()) {
-            if(!(_flags & Flags::MarkClose)) {
+            if(!_flags.test(Flags::MarkClose)) {
                 LogFat("读失败：code:%d", ret.Code());
             }
             _close_reason = CloseReason::Reset;
         }
 
-        _flags |= Flags::MarkClose;
+        _flags.set(Flags::MarkClose);
         _CloseIfNeeded();
     }
     delete rio;
@@ -181,10 +180,10 @@ void ClientSocket::_OnWrite(WriteIOContext* io)
         _onWrite(this, dwBytes);
     }
     else {
-        if(!(_flags & Flags::MarkClose)) {
+        if(!_flags.test(Flags::MarkClose)) {
             LogFat("写失败 code=%d", ret.Code());
         }
-        _flags |= Flags::MarkClose;
+        _flags.set(Flags::MarkClose);
     }
     _CloseIfNeeded();
     delete io;
@@ -195,9 +194,7 @@ void ClientSocket::_OnConnect(ConnectIOContext* io)
     WSARet ret = io->GetResult(_fd);
     delete io;
     auto connected = ret.Succ();
-    _flags &= ~Flags::Closed;
-    _flags &= ~Flags::MarkClose;
-    _flags &= Flags::PendingRead;
+    _flags.clear(Flags::Closed, Flags::MarkClose, Flags::PendingRead);
     _onConnect(this, connected);
 }
 

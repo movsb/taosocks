@@ -89,5 +89,8 @@
     <ClInclude Include="common\resolver.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
+    <ClInclude Include="common\flags.hpp">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
