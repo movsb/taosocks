@@ -4,6 +4,7 @@ import (
     "fmt"
     "net"
     "io"
+    "sync"
 )
 
 type Server struct {
@@ -33,26 +34,26 @@ func (s *Server) Run(network, addr string) error {
 }
 
 func (s *Server) handle(conn net.Conn) error {
-    // defer conn.Close()
+    defer conn.Close()
 
     // Reads the version byte
     version := []byte{0}
     if _, err := conn.Read(version); err != nil {
-        panic(err)
+        return err
     }
 
     if version[0] != 0x05 {
-        panic("bad version")
+        return fmt.Errorf("bad version: %d", version[0])
     }
 
     authCount := []byte{0}
     if _, err := conn.Read(authCount); err != nil {
-        panic("bad authCount")
+        return fmt.Errorf("bad authCount")
     }
 
     authMethods := make([]byte, authCount[0])
     if _, err := conn.Read(authMethods); err != nil {
-        panic(err)
+        return fmt.Errorf("authMethods: %s", err)
     }
 
     var haveNoAuth bool = false
@@ -64,42 +65,42 @@ func (s *Server) handle(conn net.Conn) error {
     }
 
     if !haveNoAuth {
-        panic("No acceptable auth method provided.")
+        return fmt.Errorf("No acceptable auth method provided.")
     }
 
     authReply := []byte{5,0}
     if _, err := conn.Write(authReply); err != nil {
-        panic("Failed to write auth method")
+        return fmt.Errorf("Failed to write auth method")
     }
 
     if _, err := conn.Read(version); err != nil {
-        panic("error")
+        return fmt.Errorf("error")
     }
 
     if version[0] != 5 {
-        panic("bad version")
+        return fmt.Errorf("bad version")
     }
 
     command := []byte{0}
     if _, err := conn.Read(command); err != nil {
-        panic(err)
+        return fmt.Errorf("err: %s", err)
     }
 
     if command[0] != 1 {
-        panic("bad command")
+        return fmt.Errorf("bad command")
     }
 
     if _, err := conn.Read(command); err != nil {
-        panic(err)
+        return fmt.Errorf("err:%s", err)
     }
 
     if command[0] != 0 {
-        panic("bad reserved")
+        return fmt.Errorf("bad reserved")
     }
 
     addrType := []byte{0}
     if _, err := conn.Read(addrType); err != nil {
-        panic(err)
+        return fmt.Errorf("err:%s", err)
     }
 
     var strAddr string
@@ -107,29 +108,29 @@ func (s *Server) handle(conn net.Conn) error {
     if addrType[0] == 1 {
         ipv4 := []byte{0,0,0,0}
         if _, err := io.ReadAtLeast(conn, ipv4, 4); err != nil {
-            panic(err)
+            return fmt.Errorf("err:%s", err)
         }
 
         strAddr = string(net.IP(ipv4))
     } else if addrType[0] == 3 {
         nameLen := []byte{0}
         if _, err := conn.Read(nameLen); err != nil {
-            panic("bad length")
+            return fmt.Errorf("bad length")
         }
 
         name := make([]byte, nameLen[0])
         if _, err := io.ReadAtLeast(conn, name, int(nameLen[0])); err != nil {
-            panic(err)
+            return fmt.Errorf("err:%s", err)
         }
 
         strAddr = string(name)
     } else {
-        panic("bad addr")
+        return fmt.Errorf("bad addr")
     }
 
     portNumberArray := []byte{0,0}
     if _, err := conn.Read(portNumberArray); err != nil {
-        panic("bad port")
+        return fmt.Errorf("bad port")
     }
 
     portNumber := int(portNumberArray[0]) * 256 + int(portNumberArray[1])
@@ -151,18 +152,29 @@ func (s *Server) handle(conn net.Conn) error {
     reply := []byte{5,0,0,1,0,0,0,0,0,0}
     conn.Write(reply)
 
-    go relay(conn, conn2, addr)
-    go relay(conn2, conn, "")
+    defer conn2.Close()
+
+    wg := &sync.WaitGroup{}
+
+    wg.Add(2)
+
+    go relay(conn, conn2, addr, wg)
+    go relay(conn2, conn, "", wg)
+
+    wg.Wait()
+
+    fmt.Printf("Finished relay\n")
 
     return nil
 }
 
-func relay(conn1, conn2 net.Conn, addr string) {
+func relay(conn1, conn2 net.Conn, addr string, wg *sync.WaitGroup) {
     io.Copy(conn1, conn2)
-    conn1.Close()
     if addr != "" {
         fmt.Printf("Close connection to %s\n", addr)
     }
+
+    wg.Done()
 }
 
 func main() {
