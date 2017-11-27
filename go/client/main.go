@@ -5,7 +5,20 @@ import (
     "net"
     "io"
     "sync"
+    "encoding/gob"
 )
+
+type OpenPacket struct {
+    Addr    string
+}
+
+type OpenAckPacket struct {
+    Status bool
+}
+
+type RelayPacket struct {
+    Data []byte
+}
 
 type Server struct {
 
@@ -139,7 +152,7 @@ func (s *Server) handle(conn net.Conn) error {
 
     addr := fmt.Sprintf("%s:%d", strAddr, portNumber)
 
-    conn2, err := net.Dial("tcp", addr)
+    conn2, err := net.Dial("tcp", "sss.twofei.com:1081")
     if err != nil {
         conn.Close()
         if conn2 != nil {
@@ -149,17 +162,42 @@ func (s *Server) handle(conn net.Conn) error {
         return nil
     }
 
+    defer conn2.Close()
+
+    enc := gob.NewEncoder(conn2)
+    dec := gob.NewDecoder(conn2)
+
+    err = enc.Encode(OpenPacket{addr})
+    if err != nil {
+        return fmt.Errorf("error enc")
+    }
+
+    var oapkt OpenAckPacket
+    err = dec.Decode(&oapkt)
+    if err != nil {
+        return fmt.Errorf("error dec")
+    }
+
+    fmt.Printf("Status: %t\n", oapkt.Status)
+
     reply := []byte{5,0,0,1,0,0,0,0,0,0}
+
+    if !oapkt.Status {
+        reply[1] = 1
+    }
+
     conn.Write(reply)
 
-    defer conn2.Close()
+    if !oapkt.Status {
+        return nil
+    }
 
     wg := &sync.WaitGroup{}
 
     wg.Add(2)
 
-    go relay(conn, conn2, addr, wg)
-    go relay(conn2, conn, "", wg)
+    go relay1(enc, conn, wg)
+    go relay2(conn, dec, wg)
 
     wg.Wait()
 
@@ -168,13 +206,42 @@ func (s *Server) handle(conn net.Conn) error {
     return nil
 }
 
-func relay(conn1, conn2 net.Conn, addr string, wg *sync.WaitGroup) {
-    io.Copy(conn1, conn2)
-    if addr != "" {
-        fmt.Printf("Close connection to %s\n", addr)
-    }
+func relay1(enc *gob.Encoder, conn net.Conn, wg *sync.WaitGroup) {
+    defer wg.Done()
 
-    wg.Done()
+    buf := make([]byte, 1024)
+
+    for {
+        var pkt RelayPacket
+        n, err := conn.Read(buf)
+        if err != nil {
+            return
+        }
+
+        pkt.Data = buf[:n]
+
+        err = enc.Encode(pkt)
+        if err != nil {
+            return
+        }
+    }
+}
+
+func relay2(conn net.Conn, dec *gob.Decoder, wg *sync.WaitGroup) {
+    defer wg.Done()
+
+    for {
+        var pkt RelayPacket
+        err := dec.Decode(&pkt)
+        if err != nil {
+            return
+        }
+
+        _, err = conn.Write(pkt.Data)
+        if err != nil {
+            return
+        }
+    }
 }
 
 func main() {
