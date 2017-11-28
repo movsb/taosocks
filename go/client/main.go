@@ -152,7 +152,7 @@ func (s *Server) handle(conn net.Conn) error {
 
     addr := fmt.Sprintf("%s:%d", strAddr, portNumber)
 
-    conn2, err := net.Dial("tcp", "sss.twofei.com:1081")
+    conn2, err := net.Dial("tcp", "127.0.0.1:1081")
     if err != nil {
         conn.Close()
         if conn2 != nil {
