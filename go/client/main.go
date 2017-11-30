@@ -124,7 +124,7 @@ func (s *Server) handle(conn net.Conn) error {
             return fmt.Errorf("err:%s", err)
         }
 
-        strAddr = string(net.IP(ipv4))
+        strAddr = net.IP(ipv4).String()
     } else if addrType[0] == 3 {
         nameLen := []byte{0}
         if _, err := conn.Read(nameLen); err != nil {
