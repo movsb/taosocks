@@ -148,8 +148,6 @@ func (s *Server) handle(conn net.Conn) error {
 
     portNumber := int(portNumberArray[0]) * 256 + int(portNumberArray[1])
 
-    fmt.Printf("addr:%s,port:%d\n", strAddr, portNumber)
-
     addr := fmt.Sprintf("%s:%d", strAddr, portNumber)
 
     conn2, err := net.Dial("tcp", "127.0.0.1:1081")
@@ -158,7 +156,7 @@ func (s *Server) handle(conn net.Conn) error {
         if conn2 != nil {
             conn2.Close()
         }
-        fmt.Printf("failed to dial: %s\n", addr)
+        fmt.Printf("Dial server: %s\n", err)
         return nil
     }
 
@@ -178,7 +176,8 @@ func (s *Server) handle(conn net.Conn) error {
         return fmt.Errorf("error dec")
     }
 
-    fmt.Printf("Status: %t\n", oapkt.Status)
+    // fmt.Printf("Status: %t\n", oapkt.Status)
+    fmt.Printf("-> %s\n", addr)
 
     reply := []byte{5,0,0,1,0,0,0,0,0,0}
 
@@ -201,7 +200,7 @@ func (s *Server) handle(conn net.Conn) error {
 
     wg.Wait()
 
-    fmt.Printf("Finished relay\n")
+    fmt.Printf("<- %s\n", addr)
 
     return nil
 }

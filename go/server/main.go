@@ -33,8 +33,6 @@ func (s *Server) Run(network, addr string) error {
     for {
         conn, err := l.Accept()
 
-        // fmt.Println("accepted...")
-
         if err != nil {
             panic(err)
         }
@@ -57,7 +55,7 @@ func (s *Server) handle(conn net.Conn) error {
         return err
     }
 
-    fmt.Println(opkt.Addr)
+    fmt.Printf("-> %s\n", opkt.Addr)
 
     conn2, err := net.Dial("tcp", opkt.Addr)
     if err != nil {
@@ -80,7 +78,7 @@ func (s *Server) handle(conn net.Conn) error {
 
     wg.Wait()
 
-    fmt.Printf("Finished relay\n")
+    fmt.Printf("<- %s\n", opkt.Addr)
 
     return nil
 }
