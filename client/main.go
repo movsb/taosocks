@@ -6,7 +6,15 @@ import (
     "io"
     "sync"
     "encoding/gob"
+    "flag"
 )
+
+type Config struct {
+    Listen  string
+    Server  string
+}
+
+var config Config
 
 type OpenPacket struct {
     Addr    string
@@ -150,7 +158,7 @@ func (s *Server) handle(conn net.Conn) error {
 
     addr := fmt.Sprintf("%s:%d", strAddr, portNumber)
 
-    conn2, err := net.Dial("tcp", "sss.twofei.com:1081")
+    conn2, err := net.Dial("tcp", config.Server)
     if err != nil {
         conn.Close()
         if conn2 != nil {
@@ -247,8 +255,16 @@ func relay2(conn net.Conn, dec *gob.Decoder, wg *sync.WaitGroup) {
     }
 }
 
+func parseConfig() {
+    flag.StringVar(&config.Listen, "listen", "127.0.0.1:1080", "listen address(host:port)")
+    flag.StringVar(&config.Server, "server", "127.0.0.1:1081", "server address(host:port)")
+    flag.Parse()
+}
+
 func main() {
+    parseConfig()
+
     s :=  Server{}
-    s.Run("tcp", "127.0.0.1:1080")
+    s.Run("tcp", config.Listen)
 }
 

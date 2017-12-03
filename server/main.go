@@ -5,7 +5,14 @@ import (
     "net"
     "sync"
     "encoding/gob"
+    "flag"
 )
+
+type Config struct {
+    Listen  string
+}
+
+var config Config
 
 type OpenPacket struct {
     Addr    string
@@ -121,8 +128,15 @@ func relay2(conn net.Conn, dec *gob.Decoder, wg *sync.WaitGroup) {
     }
 }
 
+func parseConfig() {
+    flag.StringVar(&config.Listen, "listen", "127.0.0.1:1081", "listen address(host:port)")
+    flag.Parse()
+}
+
 func main() {
+    parseConfig()
+
     s :=  Server{}
-    s.Run("tcp", "0.0.0.0:1081")
+    s.Run("tcp", config.Listen)
 }
 
