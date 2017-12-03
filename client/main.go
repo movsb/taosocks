@@ -203,8 +203,15 @@ func (s *Server) handle(conn net.Conn) error {
 
     wg.Add(2)
 
-    go relay1(enc, conn, wg, conn2)
-    go relay2(conn, dec, wg)
+    go func() {
+        relay1(enc, conn, conn2)
+        wg.Done()
+    }()
+
+    go func() {
+        relay2(conn, dec)
+        wg.Done()
+    }()
 
     wg.Wait()
 
@@ -213,9 +220,7 @@ func (s *Server) handle(conn net.Conn) error {
     return nil
 }
 
-func relay1(enc *gob.Encoder, conn net.Conn, wg *sync.WaitGroup, conn2 net.Conn) {
-    defer wg.Done()
-
+func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) {
     // TODO dup close
     defer conn.Close()
     defer conn2.Close()
@@ -238,9 +243,7 @@ func relay1(enc *gob.Encoder, conn net.Conn, wg *sync.WaitGroup, conn2 net.Conn)
     }
 }
 
-func relay2(conn net.Conn, dec *gob.Decoder, wg *sync.WaitGroup) {
-    defer wg.Done()
-
+func relay2(conn net.Conn, dec *gob.Decoder) {
     for {
         var pkt RelayPacket
         err := dec.Decode(&pkt)

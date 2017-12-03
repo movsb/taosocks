@@ -80,8 +80,15 @@ func (s *Server) handle(conn net.Conn) error {
     wg := &sync.WaitGroup{}
     wg.Add(2)
 
-    go relay1(enc, conn2, wg)
-    go relay2(conn2, dec, wg)
+    go func() {
+        relay1(enc, conn2)
+        wg.Done()
+    }()
+
+    go func() {
+        relay2(conn2, dec)
+        wg.Done()
+    }()
 
     wg.Wait()
 
@@ -90,9 +97,7 @@ func (s *Server) handle(conn net.Conn) error {
     return nil
 }
 
-func relay1(enc *gob.Encoder, conn net.Conn, wg *sync.WaitGroup) {
-    defer wg.Done()
-
+func relay1(enc *gob.Encoder, conn net.Conn) {
     buf := make([]byte, 1024)
 
     for {
@@ -111,9 +116,7 @@ func relay1(enc *gob.Encoder, conn net.Conn, wg *sync.WaitGroup) {
     }
 }
 
-func relay2(conn net.Conn, dec *gob.Decoder, wg *sync.WaitGroup) {
-    defer wg.Done()
-
+func relay2(conn net.Conn, dec *gob.Decoder) {
     for {
         var pkt RelayPacket
         err := dec.Decode(&pkt)
