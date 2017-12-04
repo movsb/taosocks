@@ -7,6 +7,7 @@ import (
     "sync"
     "encoding/gob"
     "flag"
+    "common"
 )
 
 type Config struct {
@@ -15,18 +16,6 @@ type Config struct {
 }
 
 var config Config
-
-type OpenPacket struct {
-    Addr    string
-}
-
-type OpenAckPacket struct {
-    Status bool
-}
-
-type RelayPacket struct {
-    Data []byte
-}
 
 type Server struct {
 
@@ -173,12 +162,12 @@ func (s *Server) handle(conn net.Conn) error {
     enc := gob.NewEncoder(conn2)
     dec := gob.NewDecoder(conn2)
 
-    err = enc.Encode(OpenPacket{addr})
+    err = enc.Encode(common.OpenPacket{addr})
     if err != nil {
         return fmt.Errorf("error enc")
     }
 
-    var oapkt OpenAckPacket
+    var oapkt common.OpenAckPacket
     err = dec.Decode(&oapkt)
     if err != nil {
         return fmt.Errorf("error dec")
@@ -221,14 +210,13 @@ func (s *Server) handle(conn net.Conn) error {
 }
 
 func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) {
-    // TODO dup close
     defer conn.Close()
     defer conn2.Close()
 
     buf := make([]byte, 1024)
 
     for {
-        var pkt RelayPacket
+        var pkt common.RelayPacket
         n, err := conn.Read(buf)
         if err != nil {
             return
@@ -245,7 +233,7 @@ func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) {
 
 func relay2(conn net.Conn, dec *gob.Decoder) {
     for {
-        var pkt RelayPacket
+        var pkt common.RelayPacket
         err := dec.Decode(&pkt)
         if err != nil {
             return

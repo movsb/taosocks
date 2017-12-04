@@ -6,6 +6,7 @@ import (
     "sync"
     "encoding/gob"
     "flag"
+    "common"
 )
 
 type Config struct {
@@ -13,18 +14,6 @@ type Config struct {
 }
 
 var config Config
-
-type OpenPacket struct {
-    Addr    string
-}
-
-type OpenAckPacket struct {
-    Status bool
-}
-
-type RelayPacket struct {
-    Data []byte
-}
 
 type Server struct {
 
@@ -53,10 +42,12 @@ func (s *Server) Run(network, addr string) error {
 func (s *Server) handle(conn net.Conn) error {
     defer conn.Close()
 
+    fmt.Printf("accept: local: %s, remote: %s\n", conn.LocalAddr(), conn.RemoteAddr())
+
     var enc = gob.NewEncoder(conn)
     var dec = gob.NewDecoder(conn)
 
-    var opkt OpenPacket
+    var opkt common.OpenPacket
     err := dec.Decode(&opkt)
     if err != nil {
         return err
@@ -69,13 +60,13 @@ func (s *Server) handle(conn net.Conn) error {
         if conn2 != nil {
             conn2.Close()
         }
-        enc.Encode(OpenAckPacket{Status:false})
+        enc.Encode(common.OpenAckPacket{Status:false})
         return err
     }
 
     defer conn2.Close()
 
-    enc.Encode(OpenAckPacket{Status:true})
+    enc.Encode(common.OpenAckPacket{Status:true})
 
     wg := &sync.WaitGroup{}
     wg.Add(2)
@@ -101,7 +92,7 @@ func relay1(enc *gob.Encoder, conn net.Conn) {
     buf := make([]byte, 1024)
 
     for {
-        var pkt RelayPacket
+        var pkt common.RelayPacket
         n, err := conn.Read(buf)
         if err != nil {
             return
@@ -118,7 +109,7 @@ func relay1(enc *gob.Encoder, conn net.Conn) {
 
 func relay2(conn net.Conn, dec *gob.Decoder) {
     for {
-        var pkt RelayPacket
+        var pkt common.RelayPacket
         err := dec.Decode(&pkt)
         if err != nil {
             return
