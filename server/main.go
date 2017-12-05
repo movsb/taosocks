@@ -6,7 +6,7 @@ import (
     "sync"
     "encoding/gob"
     "flag"
-    "common"
+    "taosocks/common"
 )
 
 type Config struct {
