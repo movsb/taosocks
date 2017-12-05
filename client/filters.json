@@ -1,0 +1,10 @@
+{
+    "proxy": [
+        "google.com",
+        "youtube.com"
+    ],
+    "forbidden": [
+        "sogou.com"
+    ]
+}
+
