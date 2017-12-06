@@ -7,7 +7,7 @@ import (
     "sync"
     "encoding/gob"
     "flag"
-    "taosocks/common"
+    "taosocks/internal"
 )
 
 type Config struct {
@@ -162,12 +162,12 @@ func (s *Server) handle(conn net.Conn) error {
     enc := gob.NewEncoder(conn2)
     dec := gob.NewDecoder(conn2)
 
-    err = enc.Encode(common.OpenPacket{addr})
+    err = enc.Encode(internal.OpenPacket{addr})
     if err != nil {
         return fmt.Errorf("error enc")
     }
 
-    var oapkt common.OpenAckPacket
+    var oapkt internal.OpenAckPacket
     err = dec.Decode(&oapkt)
     if err != nil {
         return fmt.Errorf("error dec")
@@ -216,7 +216,7 @@ func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) {
     buf := make([]byte, 1024)
 
     for {
-        var pkt common.RelayPacket
+        var pkt internal.RelayPacket
         n, err := conn.Read(buf)
         if err != nil {
             return
@@ -233,7 +233,7 @@ func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) {
 
 func relay2(conn net.Conn, dec *gob.Decoder) {
     for {
-        var pkt common.RelayPacket
+        var pkt internal.RelayPacket
         err := dec.Decode(&pkt)
         if err != nil {
             return
