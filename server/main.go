@@ -1,11 +1,13 @@
 package main
 
 import (
+    "log"
     "fmt"
     "net"
     "sync"
     "encoding/gob"
     "flag"
+    "crypto/tls"
     "taosocks/internal"
 )
 
@@ -20,7 +22,15 @@ type Server struct {
 }
 
 func (s *Server) Run(network, addr string) error {
-    l, err := net.Listen(network, addr)
+    cer, err := tls.LoadX509KeyPair("server.crt", "server.key")
+    if err != nil {
+        log.Println(err)
+        return nil
+    }
+
+    config := &tls.Config{Certificates: []tls.Certificate{cer}}
+
+    l, err := tls.Listen(network, addr, config)
 
     if err != nil {
         panic(err)

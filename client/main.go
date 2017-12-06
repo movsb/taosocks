@@ -7,6 +7,7 @@ import (
     "sync"
     "encoding/gob"
     "flag"
+    "crypto/tls"
     "taosocks/internal"
 )
 
@@ -147,7 +148,12 @@ func (s *Server) handle(conn net.Conn) error {
 
     addr := fmt.Sprintf("%s:%d", strAddr, portNumber)
 
-    conn2, err := net.Dial("tcp", config.Server)
+
+    tlsconf := &tls.Config {
+        InsecureSkipVerify: true,
+    }
+
+    conn2, err := tls.Dial("tcp", config.Server, tlsconf)
     if err != nil {
         conn.Close()
         if conn2 != nil {
