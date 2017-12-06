@@ -32,8 +32,6 @@ func (s *Server) Run(network, addr string) error {
     for {
         conn, err := l.Accept()
 
-        // fmt.Println("accepted...")
-
         if err != nil {
             panic(err)
         }
@@ -47,7 +45,6 @@ func (s *Server) Run(network, addr string) error {
 func (s *Server) handle(conn net.Conn) error {
     defer conn.Close()
 
-    // Reads the version byte
     version := []byte{0}
     if _, err := conn.Read(version); err != nil {
         return err
@@ -165,6 +162,11 @@ func (s *Server) handle(conn net.Conn) error {
 
     defer conn2.Close()
 
+    _, err = conn2.Write([]byte("GET /?token=taosocks HTTP/1.1\r\n\r\n"))
+    if err != nil {
+        return nil
+    }
+
     enc := gob.NewEncoder(conn2)
     dec := gob.NewDecoder(conn2)
 
@@ -179,8 +181,7 @@ func (s *Server) handle(conn net.Conn) error {
         return fmt.Errorf("error dec")
     }
 
-    // fmt.Printf("Status: %t\n", oapkt.Status)
-    fmt.Printf("-> %s\n", addr)
+    fmt.Printf("> %s\n", addr)
 
     reply := []byte{5,0,0,1,0,0,0,0,0,0}
 
@@ -210,7 +211,7 @@ func (s *Server) handle(conn net.Conn) error {
 
     wg.Wait()
 
-    fmt.Printf("<- %s\n", addr)
+    fmt.Printf("< %s\n", addr)
 
     return nil
 }

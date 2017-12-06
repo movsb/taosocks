@@ -17,12 +17,14 @@ type Config struct {
 
 var config Config
 
+var hh HTTP
+
 type Server struct {
 
 }
 
 func (s *Server) Run(network, addr string) error {
-    cer, err := tls.LoadX509KeyPair("server.crt", "server.key")
+    cer, err := tls.LoadX509KeyPair("../config/server.crt", "../config/server.key")
     if err != nil {
         log.Println(err)
         return nil
@@ -43,16 +45,20 @@ func (s *Server) Run(network, addr string) error {
             panic(err)
         }
 
-        go s.handle(conn)
+        go s.handleAccept(conn)
     }
 
     return nil
 }
 
+func (s *Server) handleAccept(conn net.Conn) {
+    if !hh.Handle(conn) {
+        s.handle(conn)
+    }
+}
+
 func (s *Server) handle(conn net.Conn) error {
     defer conn.Close()
-
-    fmt.Printf("accept: local: %s, remote: %s\n", conn.LocalAddr(), conn.RemoteAddr())
 
     var enc = gob.NewEncoder(conn)
     var dec = gob.NewDecoder(conn)
@@ -63,7 +69,7 @@ func (s *Server) handle(conn net.Conn) error {
         return err
     }
 
-    fmt.Printf("-> %s\n", opkt.Addr)
+    fmt.Printf("> %s\n", opkt.Addr)
 
     conn2, err := net.Dial("tcp", opkt.Addr)
     if err != nil {
@@ -93,7 +99,7 @@ func (s *Server) handle(conn net.Conn) error {
 
     wg.Wait()
 
-    fmt.Printf("<- %s\n", opkt.Addr)
+    fmt.Printf("< %s\n", opkt.Addr)
 
     return nil
 }
