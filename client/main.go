@@ -18,6 +18,7 @@ type Config struct {
 }
 
 var config Config
+var filter Filter
 
 type Server struct {
 
@@ -146,7 +147,20 @@ func (s *Server) handle(conn net.Conn) error {
 
     addr := fmt.Sprintf("%s:%d", strAddr, portNumber)
 
-    s.remoteRelay(addr, conn)
+    var proxyType ProxyType = Direct
+    if addrType[0] == 1 {
+        proxyType = filter.Test(strAddr, IPv4)
+    } else if addrType[0] == 3 {
+        proxyType = filter.Test(strAddr, Domain)
+    }
+
+    switch proxyType {
+    case Direct:
+        s.localRelay(addr, conn)
+    case Proxy:
+        s.remoteRelay(addr, conn)
+    case Reject:
+    }
 
     return nil
 }
@@ -158,7 +172,7 @@ func (s *Server) localRelay(addr string, conn net.Conn) {
         if conn2 != nil {
             conn2.Close()
         }
-        fmt.Printf("Dial host: %s\n", err)
+        fmt.Printf("Dial host:%s -  %s\n", addr, err)
         return
     }
 
@@ -168,22 +182,18 @@ func (s *Server) localRelay(addr string, conn net.Conn) {
     reply := []byte{5,0,0,1,0,0,0,0,0,0}
     conn.Write(reply)
 
-    fmt.Printf("> %s\n", addr)
+    fmt.Printf("> [Direct] %s\n", addr)
 
     wg := &sync.WaitGroup{}
     wg.Add(2)
 
     go func() {
-        fmt.Printf("begin 1\n")
         io.Copy(conn2, conn)
-        fmt.Printf("done 1\n")
         wg.Done()
     }()
 
     go func() {
-        fmt.Printf("begin 2\n")
         io.Copy(conn, conn2)
-        fmt.Printf("done 2\n")
         wg.Done()
     }()
 
@@ -228,7 +238,7 @@ func (s *Server) remoteRelay(addr string, conn net.Conn) {
         return// fmt.Errorf("error dec")
     }
 
-    fmt.Printf("> %s\n", addr)
+    fmt.Printf("> [Proxy]  %s\n", addr)
 
     reply := []byte{5,0,0,1,0,0,0,0,0,0}
 
@@ -307,6 +317,7 @@ func parseConfig() {
 
 func main() {
     parseConfig()
+    filter.Init("../config/rules.txt")
 
     s :=  Server{}
     s.Run("tcp", config.Listen)

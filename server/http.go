@@ -87,10 +87,12 @@ func (h *HTTP) handle(conn net.Conn) bool {
         return false
     }
 
-    var path = url.Path[1:]
-    if path == "" {
-        path = "index.html"
+    var path = url.Path
+    if path == "/" {
+        path = "/index.html"
     }
+
+    path = "../www" + path
 
     file, err := os.Open(path)
     if err != nil {
