@@ -146,7 +146,53 @@ func (s *Server) handle(conn net.Conn) error {
 
     addr := fmt.Sprintf("%s:%d", strAddr, portNumber)
 
+    s.remoteRelay(addr, conn)
 
+    return nil
+}
+
+func (s *Server) localRelay(addr string, conn net.Conn) {
+    conn2, err := net.Dial("tcp", addr)
+    if err != nil {
+        conn.Close()
+        if conn2 != nil {
+            conn2.Close()
+        }
+        fmt.Printf("Dial host: %s\n", err)
+        return
+    }
+
+    defer conn.Close()
+    defer conn2.Close()
+
+    reply := []byte{5,0,0,1,0,0,0,0,0,0}
+    conn.Write(reply)
+
+    fmt.Printf("> %s\n", addr)
+
+    wg := &sync.WaitGroup{}
+    wg.Add(2)
+
+    go func() {
+        fmt.Printf("begin 1\n")
+        io.Copy(conn2, conn)
+        fmt.Printf("done 1\n")
+        wg.Done()
+    }()
+
+    go func() {
+        fmt.Printf("begin 2\n")
+        io.Copy(conn, conn2)
+        fmt.Printf("done 2\n")
+        wg.Done()
+    }()
+
+    wg.Wait()
+
+    fmt.Printf("< %s\n", addr)
+}
+
+func (s *Server) remoteRelay(addr string, conn net.Conn) {
     tlsconf := &tls.Config {
         InsecureSkipVerify: !config.Secure,
     }
@@ -158,14 +204,14 @@ func (s *Server) handle(conn net.Conn) error {
             conn2.Close()
         }
         fmt.Printf("Dial server: %s\n", err)
-        return nil
+        return
     }
 
     defer conn2.Close()
 
     _, err = conn2.Write([]byte("GET /?token=taosocks HTTP/1.1\r\n\r\n"))
     if err != nil {
-        return nil
+        return
     }
 
     enc := gob.NewEncoder(conn2)
@@ -173,13 +219,13 @@ func (s *Server) handle(conn net.Conn) error {
 
     err = enc.Encode(internal.OpenPacket{addr})
     if err != nil {
-        return fmt.Errorf("error enc")
+        return// fmt.Errorf("error enc")
     }
 
     var oapkt internal.OpenAckPacket
     err = dec.Decode(&oapkt)
     if err != nil {
-        return fmt.Errorf("error dec")
+        return// fmt.Errorf("error dec")
     }
 
     fmt.Printf("> %s\n", addr)
@@ -193,7 +239,7 @@ func (s *Server) handle(conn net.Conn) error {
     conn.Write(reply)
 
     if !oapkt.Status {
-        return nil
+        return// nil
     }
 
     wg := &sync.WaitGroup{}
@@ -213,8 +259,6 @@ func (s *Server) handle(conn net.Conn) error {
     wg.Wait()
 
     fmt.Printf("< %s\n", addr)
-
-    return nil
 }
 
 func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) {
