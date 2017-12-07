@@ -1,8 +1,0 @@
-suffix,google.com,proxy
-suffix,gstatic.com,proxy
-suffix,youtube.com,proxy
-suffix,ytimg.com,proxy
-suffix,ggpht.com,proxy
-match,localhost,direct
-cidr,192.168.0.0/16,direct
-

@@ -1,0 +1,3 @@
+suffix,cn,direct
+cidr,192.168.0.0/16,direct
+

@@ -24,7 +24,7 @@ type Server struct {
 }
 
 func (s *Server) Run(network, addr string) error {
-    cer, err := tls.LoadX509KeyPair("../config/server.crt", "../config/server.key")
+    cer, err := tls.LoadX509KeyPair("config/server.crt", "config/server.key")
     if err != nil {
         log.Println(err)
         return nil

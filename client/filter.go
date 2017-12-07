@@ -41,6 +41,7 @@ func (f *Filter) Init(path string) {
 
     file, err := os.Open(path)
     if err != nil {
+        logf("rule file not found: %s\n", path)
         return
     }
 
@@ -68,7 +69,7 @@ func (f *Filter) Init(path string) {
                 f.match[toks[1]] = ty
             } else if toks[0] == "cidr" {
                 _, ipnet, err := net.ParseCIDR(toks[1])
-                if err != nil {
+                if err == nil {
                     f.cidr[ipnet] = ty
                 }
             }
@@ -77,7 +78,12 @@ func (f *Filter) Init(path string) {
 }
 
 func (f *Filter) Test(host string, aty AddrType) ProxyType {
-    // host_lower := strings.ToLower(host)
+    host = strings.ToLower(host)
+
+    // if is toplevel
+    if !strings.Contains(host, ".") {
+        return Direct
+    }
 
     if aty == IPv4 {
         for ipnet, ty := range f.cidr {
@@ -96,6 +102,6 @@ func (f *Filter) Test(host string, aty AddrType) ProxyType {
         }
     }
 
-    return Direct
+    return Proxy
 }
 

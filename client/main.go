@@ -134,6 +134,11 @@ func (s *Server) handle(conn net.Conn) error {
         }
 
         strAddr = string(name)
+
+        // Chrome passes IP as domain
+        if net.ParseIP(strAddr).To4() != nil {
+            addrType[0] = 1
+        }
     } else {
         return fmt.Errorf("bad addr")
     }
@@ -199,7 +204,7 @@ func (s *Server) localRelay(addr string, conn net.Conn) {
 
     wg.Wait()
 
-    fmt.Printf("< %s\n", addr)
+    fmt.Printf("< [Direct] %s\n", addr)
 }
 
 func (s *Server) remoteRelay(addr string, conn net.Conn) {
@@ -268,7 +273,7 @@ func (s *Server) remoteRelay(addr string, conn net.Conn) {
 
     wg.Wait()
 
-    fmt.Printf("< %s\n", addr)
+    fmt.Printf("< [Proxy]  %s\n", addr)
 }
 
 func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) {
@@ -317,7 +322,7 @@ func parseConfig() {
 
 func main() {
     parseConfig()
-    filter.Init("../config/rules.txt")
+    filter.Init("config/whites.txt")
 
     s :=  Server{}
     s.Run("tcp", config.Listen)
