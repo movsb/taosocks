@@ -3,11 +3,8 @@ package main
 import (
     "fmt"
     "net"
-    "io"
-    "sync"
-    "encoding/gob"
     "flag"
-    "taosocks/internal"
+    "io"
 )
 
 type Config struct {
@@ -158,159 +155,30 @@ func (s *Server) handle(conn net.Conn) error {
         proxyType = filter.Test(strAddr, Domain)
     }
 
+    var rr Relayer
+
     switch proxyType {
     case Direct:
-        s.localRelay(addr, conn)
+        rr = &LocalRelayer{}
     case Proxy:
-        s.remoteRelay(addr, conn)
+        rr = &RemoteRelayer{
+            Server: config.Server,
+            Secure: config.Secure,
+        }
     case Reject:
     }
 
+    if rr != nil {
+        if rr.Begin(addr, conn) {
+            conn.Write([]byte{5,0,0,1,0,0,0,0,0,0})
+            rr.Relay()
+        } else {
+            conn.Write([]byte{5,1,0,1,0,0,0,0,0,0})
+            conn.Close()
+        }
+    }
+
     return nil
-}
-
-func (s *Server) localRelay(addr string, conn net.Conn) {
-    conn2, err := net.Dial("tcp", addr)
-    if err != nil {
-        conn.Close()
-        if conn2 != nil {
-            conn2.Close()
-        }
-        fmt.Printf("Dial host:%s -  %s\n", addr, err)
-        return
-    }
-
-    defer conn.Close()
-    defer conn2.Close()
-
-    reply := []byte{5,0,0,1,0,0,0,0,0,0}
-    conn.Write(reply)
-
-    fmt.Printf("> [Direct] %s\n", addr)
-
-    wg := &sync.WaitGroup{}
-    wg.Add(2)
-
-    var tx int64 = 0
-    var rx int64 = 0
-
-    go func() {
-        tx, _ = io.Copy(conn2, conn)
-        wg.Done()
-    }()
-
-    go func() {
-        rx, _ = io.Copy(conn, conn2)
-        wg.Done()
-    }()
-
-    wg.Wait()
-
-    fmt.Printf("< [Direct] %s [TX:%d, RX:%d]\n", addr, tx, rx)
-}
-
-func (s *Server) remoteRelay(addr string, conn net.Conn) {
-    serverDialer := ServerDialer{}
-    conn2, err := serverDialer.Dial(config.Server, false)
-    if err != nil {
-        conn.Close()
-        return
-    }
-
-    defer conn2.Close()
-
-    enc := gob.NewEncoder(conn2)
-    dec := gob.NewDecoder(conn2)
-
-    err = enc.Encode(internal.OpenPacket{addr})
-    if err != nil {
-        return// fmt.Errorf("error enc")
-    }
-
-    var oapkt internal.OpenAckPacket
-    err = dec.Decode(&oapkt)
-    if err != nil {
-        return// fmt.Errorf("error dec")
-    }
-
-    fmt.Printf("> [Proxy ] %s\n", addr)
-
-    reply := []byte{5,0,0,1,0,0,0,0,0,0}
-
-    if !oapkt.Status {
-        reply[1] = 1
-    }
-
-    conn.Write(reply)
-
-    if !oapkt.Status {
-        return// nil
-    }
-
-    wg := &sync.WaitGroup{}
-    wg.Add(2)
-
-    var tx int64 = 0
-    var rx int64 = 0
-
-    go func() {
-        tx, _ = relay1(enc, conn, conn2)
-        wg.Done()
-    }()
-
-    go func() {
-        rx, _ = relay2(conn, dec)
-        wg.Done()
-    }()
-
-    wg.Wait()
-
-    fmt.Printf("< [Proxy ] %s [TX:%d, RX:%d]\n", addr, tx, rx)
-}
-
-func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) (int64, error) {
-    defer conn.Close()
-    defer conn2.Close()
-
-    buf := make([]byte, 1024)
-
-    var all int64 = 0
-
-    for {
-        var pkt internal.RelayPacket
-        n, err := conn.Read(buf)
-        if err != nil {
-            return all, err
-        }
-
-        pkt.Data = buf[:n]
-
-        err = enc.Encode(pkt)
-        if err != nil {
-            return all, err
-        }
-
-        all += int64(n)
-    }
-}
-
-func relay2(conn net.Conn, dec *gob.Decoder) (int64, error) {
-    var all int64 = 0
-
-    for {
-        var pkt internal.RelayPacket
-        err := dec.Decode(&pkt)
-        if err != nil {
-            return all, err
-        }
-
-        _, err = conn.Write(pkt.Data)
-        if err != nil {
-            return all, err
-        }
-
-        all += int64(len(pkt.Data))
-    }
 }
 
 func parseConfig() {
