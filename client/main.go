@@ -192,19 +192,22 @@ func (s *Server) localRelay(addr string, conn net.Conn) {
     wg := &sync.WaitGroup{}
     wg.Add(2)
 
+    var tx int64 = 0
+    var rx int64 = 0
+
     go func() {
-        io.Copy(conn2, conn)
+        tx, _ = io.Copy(conn2, conn)
         wg.Done()
     }()
 
     go func() {
-        io.Copy(conn, conn2)
+        rx, _ = io.Copy(conn, conn2)
         wg.Done()
     }()
 
     wg.Wait()
 
-    fmt.Printf("< [Direct] %s\n", addr)
+    fmt.Printf("< [Direct] %s [TX:%d, RX:%d]\n", addr, tx, rx)
 }
 
 func (s *Server) remoteRelay(addr string, conn net.Conn) {
@@ -258,58 +261,68 @@ func (s *Server) remoteRelay(addr string, conn net.Conn) {
     }
 
     wg := &sync.WaitGroup{}
-
     wg.Add(2)
 
+    var tx int64 = 0
+    var rx int64 = 0
+
     go func() {
-        relay1(enc, conn, conn2)
+        tx, _ = relay1(enc, conn, conn2)
         wg.Done()
     }()
 
     go func() {
-        relay2(conn, dec)
+        rx, _ = relay2(conn, dec)
         wg.Done()
     }()
 
     wg.Wait()
 
-    fmt.Printf("< [Proxy]  %s\n", addr)
+    fmt.Printf("< [Proxy]  %s [TX:%d, RX:%d]\n", addr, tx, rx)
 }
 
-func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) {
+func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) (int64, error) {
     defer conn.Close()
     defer conn2.Close()
 
     buf := make([]byte, 1024)
 
+    var all int64 = 0
+
     for {
         var pkt internal.RelayPacket
         n, err := conn.Read(buf)
         if err != nil {
-            return
+            return all, err
         }
 
         pkt.Data = buf[:n]
 
         err = enc.Encode(pkt)
         if err != nil {
-            return
+            return all, err
         }
+
+        all += int64(n)
     }
 }
 
-func relay2(conn net.Conn, dec *gob.Decoder) {
+func relay2(conn net.Conn, dec *gob.Decoder) (int64, error) {
+    var all int64 = 0
+
     for {
         var pkt internal.RelayPacket
         err := dec.Decode(&pkt)
         if err != nil {
-            return
+            return all, err
         }
 
         _, err = conn.Write(pkt.Data)
         if err != nil {
-            return
+            return all, err
         }
+
+        all += int64(len(pkt.Data))
     }
 }
 
