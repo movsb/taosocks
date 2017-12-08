@@ -7,7 +7,6 @@ import (
     "sync"
     "encoding/gob"
     "flag"
-    "crypto/tls"
     "taosocks/internal"
 )
 
@@ -211,26 +210,14 @@ func (s *Server) localRelay(addr string, conn net.Conn) {
 }
 
 func (s *Server) remoteRelay(addr string, conn net.Conn) {
-    tlsconf := &tls.Config {
-        InsecureSkipVerify: !config.Secure,
-    }
-
-    conn2, err := tls.Dial("tcp", config.Server, tlsconf)
+    serverDialer := ServerDialer{}
+    conn2, err := serverDialer.Dial(config.Server, false)
     if err != nil {
         conn.Close()
-        if conn2 != nil {
-            conn2.Close()
-        }
-        fmt.Printf("Dial server: %s\n", err)
         return
     }
 
     defer conn2.Close()
-
-    _, err = conn2.Write([]byte("GET /?token=taosocks HTTP/1.1\r\n\r\n"))
-    if err != nil {
-        return
-    }
 
     enc := gob.NewEncoder(conn2)
     dec := gob.NewDecoder(conn2)
@@ -246,7 +233,7 @@ func (s *Server) remoteRelay(addr string, conn net.Conn) {
         return// fmt.Errorf("error dec")
     }
 
-    fmt.Printf("> [Proxy]  %s\n", addr)
+    fmt.Printf("> [Proxy ] %s\n", addr)
 
     reply := []byte{5,0,0,1,0,0,0,0,0,0}
 
@@ -278,7 +265,7 @@ func (s *Server) remoteRelay(addr string, conn net.Conn) {
 
     wg.Wait()
 
-    fmt.Printf("< [Proxy]  %s [TX:%d, RX:%d]\n", addr, tx, rx)
+    fmt.Printf("< [Proxy ] %s [TX:%d, RX:%d]\n", addr, tx, rx)
 }
 
 func relay1(enc *gob.Encoder, conn net.Conn, conn2 net.Conn) (int64, error) {
