@@ -86,8 +86,9 @@ func (f *Filter) Test(host string, aty AddrType) ProxyType {
     }
 
     if aty == IPv4 {
+        ip := net.ParseIP(host)
         for ipnet, ty := range f.cidr {
-            if ipnet.Contains(net.ParseIP(host)) {
+            if ipnet.Contains(ip) {
                 return ty
             }
         }
