@@ -74,7 +74,7 @@ func (r *LocalRelayer) Relay() {
 
 type RemoteRelayer struct {
     Server  string
-    Secure  bool
+    Insecure  bool
 
     src     net.Conn
     dst     net.Conn
@@ -86,7 +86,7 @@ func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
     r.addr = addr
 
     serverDialer := ServerDialer{}
-    dst, err := serverDialer.Dial(r.Server, r.Secure)
+    dst, err := serverDialer.Dial(r.Server, r.Insecure)
     if err != nil {
         return false
     }

@@ -10,9 +10,9 @@ type ServerDialer struct {
 
 }
 
-func (s *ServerDialer) Dial(server string, secure bool) (net.Conn, error) {
+func (s *ServerDialer) Dial(server string, insecure bool) (net.Conn, error) {
     tlscfg := &tls.Config {
-        InsecureSkipVerify: !secure,
+        InsecureSkipVerify: insecure,
     }
 
     conn, err := tls.Dial("tcp", server, tlscfg)

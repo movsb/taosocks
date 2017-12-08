@@ -10,7 +10,7 @@ import (
 type Config struct {
     Listen  string
     Server  string
-    Secure  bool
+    Insecure  bool
 }
 
 var config Config
@@ -163,7 +163,7 @@ func (s *Server) handle(conn net.Conn) error {
     case Proxy:
         rr = &RemoteRelayer{
             Server: config.Server,
-            Secure: config.Secure,
+            Insecure: config.Insecure,
         }
     case Reject:
     }
@@ -184,7 +184,7 @@ func (s *Server) handle(conn net.Conn) error {
 func parseConfig() {
     flag.StringVar(&config.Listen, "listen", "127.0.0.1:1080", "listen address(host:port)")
     flag.StringVar(&config.Server, "server", "127.0.0.1:1081", "server address(host:port)")
-    flag.BoolVar(&config.Secure, "secure", true, "verify server certificate")
+    flag.BoolVar(&config.Insecure, "insecure", false, "don't verify server certificate")
     flag.Parse()
 }
 
