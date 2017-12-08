@@ -1,3 +1,8 @@
 suffix,cn,direct
-cidr,192.168.0.0/16,direct
+suffix,baidu.com,direct
+suffix,bdstatic.com,direct
 
+cidr,192.168.0.0/16,direct
+cidr,10.0.0.0/8,direct
+cidr,172.0.0.0/8,direct
+cidr,127.0.0.0/8,direct
