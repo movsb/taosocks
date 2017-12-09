@@ -7,9 +7,7 @@ import (
     "bufio"
     "os"
     "log"
-    "regexp"
-    "strings"
-    neturl "net/url"
+    "net/http"
 )
 
 var logf = log.Printf
@@ -29,28 +27,14 @@ func (h *HTTP) Handle(conn net.Conn) bool {
 }
 
 func (h *HTTP) handle(conn net.Conn) bool {
-    var r bool
+    bio := bufio.NewReader(conn)
 
-    scanner := bufio.NewScanner(conn)
-
-    r = scanner.Scan()
-    if !r {
-        err := scanner.Err()
-        if err != nil {
-            logf("fatal: no data: %s\n", scanner.Err())
-        }
+    req, err := http.ReadRequest(bio)
+    if err != nil {
         return true
     }
 
-    re := regexp.MustCompile(" +")
-    req := re.Split(scanner.Text(), -1)
-    if  len(req) != 3 {
-        logf("fatal: not http request")
-        return true
-    }
-
-    verb := req[0]
-    if strings.ToUpper(verb) != "GET" {
+    if req.Method != "GET" {
         conn.Write([]byte("HTTP/1.1 405 Method Not Allowed\r\n"))
         conn.Write([]byte("Allow: GET\r\n"))
         conn.Write([]byte("Connection: close\r\n"))
@@ -58,36 +42,13 @@ func (h *HTTP) handle(conn net.Conn) bool {
         return true
     }
 
-    url, err := neturl.ParseRequestURI(req[1])
-    if err != nil {
-        logf("fatal: cannot parse uri: %s\n", req[1])
-        return true
-    }
-
-    queries, err := neturl.ParseQuery(url.RawQuery)
-    if err != nil {
-        logf("fatal: bad query string: %s\n", url.RawQuery)
-        return true
-    }
-
-    for scanner.Scan() {
-        if scanner.Text() == "" {
-            break
-        }
-    }
-
-    if scanner.Err() != nil {
-        logn("fatal: failed to read headers")
-        return true
-    }
-
-    token := queries.Get("token")
-
-    if url.Path == "/" && token == "taosocks" {
+    if req.URL.Path == "/" && req.Header.Get("Connection") == "upgrade" && req.Header.Get("Upgrade") == "taosocks/20171209" && req.Header.Get("Token") == "taosocks" {
+        conn.Write([]byte("HTTP/1.1 101 Switching Protocol\r\n"))
+        conn.Write([]byte("\r\n\r\n"))
         return false
     }
 
-    var path = url.Path
+    var path = req.URL.Path
     if path == "/" {
         path = "/index.html"
     }

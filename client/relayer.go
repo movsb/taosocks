@@ -88,6 +88,7 @@ func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
     serverDialer := ServerDialer{}
     dst, err := serverDialer.Dial(r.Server, r.Insecure)
     if err != nil {
+        log.Println(err)
         return false
     }
 
@@ -168,6 +169,7 @@ func (r *RemoteRelayer) src2dst() (int64, error) {
 
         err = enc.Encode(pkt)
         if err != nil {
+            log.Printf("server reset: %s\n", err)
             break
         }
 
@@ -187,6 +189,7 @@ func (r *RemoteRelayer) dst2src() (int64, error) {
         var pkt internal.RelayPacket
         err = dec.Decode(&pkt)
         if err != nil {
+            log.Printf("server reset: %s\n", err)
             break
         }
 

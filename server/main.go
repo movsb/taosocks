@@ -2,7 +2,6 @@ package main
 
 import (
     "log"
-    "fmt"
     "net"
     "sync"
     "encoding/gob"
@@ -69,7 +68,7 @@ func (s *Server) handle(conn net.Conn) error {
         return err
     }
 
-    fmt.Printf("> %s\n", opkt.Addr)
+    log.Printf("> %s\n", opkt.Addr)
 
     conn2, err := net.Dial("tcp", opkt.Addr)
     if err != nil {
@@ -90,16 +89,20 @@ func (s *Server) handle(conn net.Conn) error {
     go func() {
         relay1(enc, conn2)
         wg.Done()
+        conn.Close()
+        conn2.Close()
     }()
 
     go func() {
         relay2(conn2, dec)
         wg.Done()
+        conn.Close()
+        conn2.Close()
     }()
 
     wg.Wait()
 
-    fmt.Printf("< %s\n", opkt.Addr)
+    log.Printf("< %s\n", opkt.Addr)
 
     return nil
 }

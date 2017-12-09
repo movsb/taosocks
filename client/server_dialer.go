@@ -2,8 +2,16 @@ package main
 
 import (
     "net"
+    "net/http"
     "crypto/tls"
     "log"
+    "errors"
+    "bufio"
+)
+
+const (
+    kToken   string = "taosocks"
+    kVersion string = "taosocks/20171209"
 )
 
 type ServerDialer struct {
@@ -24,7 +32,14 @@ func (s *ServerDialer) Dial(server string, insecure bool) (net.Conn, error) {
         return nil, err
     }
 
-    _, err = conn.Write([]byte("GET /?token=taosocks HTTP/1.1\r\n\r\n"))
+    req := s.createRequest(server)
+    err = req.Write(conn)
+    if err != nil {
+        conn.Close()
+        return nil, err
+    }
+
+    err = s.readResponse(conn)
     if err != nil {
         conn.Close()
         return nil, err
@@ -33,4 +48,32 @@ func (s *ServerDialer) Dial(server string, insecure bool) (net.Conn, error) {
     return conn, nil
 }
 
+func (s *ServerDialer) createRequest(server string) *http.Request {
+    req, _ := http.NewRequest("GET", "/", nil)
+
+    req.Host = server
+
+    req.Header.Add("Connection", "upgrade")
+    req.Header.Add("Upgrade", kVersion)
+    req.Header.Add("Token", kToken)
+
+    return req
+}
+
+func (s *ServerDialer) readResponse(conn net.Conn) error {
+    bio := bufio.NewReader(conn)
+
+    res, err := http.ReadResponse(bio, nil)
+    if err != nil {
+        return err
+    }
+
+    res.Body.Close()
+
+    if res.StatusCode != 101 {
+        return errors.New("Server upgrade protocol error.")
+    }
+
+    return nil
+}
 
