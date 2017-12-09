@@ -41,13 +41,21 @@ func (h *HTTP) handle(conn net.Conn) bool {
         conn.Write([]byte("Connection: close\r\n"))
         conn.Write([]byte("\r\n"))
         log.Printf("method not allowed: %s\n", req.Method)
+        log.Println(req)
+        return true
+    }
+
+    // How to prevent relative path?
+    if req.URL.Path == "" || req.URL.Path[0] != []byte("/")[0] || strings.Contains(req.URL.Path, "/../") {
+        conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+        log.Println("Bad request: ", req)
         return true
     }
 
     if req.URL.Path == "/" && strings.ToLower(req.Header.Get("Connection")) == "upgrade" {
         if req.Header.Get("Upgrade") == "taosocks/20171209" && req.Header.Get("token") == "taosocks" {
             conn.Write([]byte("HTTP/1.1 101 Switching Protocol\r\n"))
-            conn.Write([]byte("\r\n\r\n"))
+            conn.Write([]byte("\r\n"))
             return false
         } else {
             log.Printf("Invalid upgrade: %s\n", req)
