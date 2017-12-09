@@ -8,6 +8,7 @@ import (
     "os"
     "log"
     "net/http"
+    "strings"
 )
 
 var logf = log.Printf
@@ -39,26 +40,36 @@ func (h *HTTP) handle(conn net.Conn) bool {
         conn.Write([]byte("Allow: GET\r\n"))
         conn.Write([]byte("Connection: close\r\n"))
         conn.Write([]byte("\r\n"))
+        log.Printf("method not allowed: %s\n", req.Method)
         return true
     }
 
-    if req.URL.Path == "/" && req.Header.Get("Connection") == "upgrade" && req.Header.Get("Upgrade") == "taosocks/20171209" && req.Header.Get("Token") == "taosocks" {
-        conn.Write([]byte("HTTP/1.1 101 Switching Protocol\r\n"))
-        conn.Write([]byte("\r\n\r\n"))
-        return false
+    if req.URL.Path == "/" && strings.ToLower(req.Header.Get("Connection")) == "upgrade" {
+        if req.Header.Get("Upgrade") == "taosocks/20171209" && req.Header.Get("token") == "taosocks" {
+            conn.Write([]byte("HTTP/1.1 101 Switching Protocol\r\n"))
+            conn.Write([]byte("\r\n\r\n"))
+            return false
+        } else {
+            log.Printf("Invalid upgrade: %s\n", req)
+        }
     }
+
+    defer func() {
+        log.Println(req)
+    }()
 
     var path = req.URL.Path
     if path == "/" {
         path = "/index.html"
     }
 
-    path = "../www" + path
+    path = "www" + path
 
     file, err := os.Open(path)
     if err != nil {
         conn.Write([]byte("HTTP/1.1 404 Not Found\r\n"))
         conn.Write([]byte("\r\n"))
+        log.Printf("File open error: %s\n", err)
         return true
     }
 
@@ -68,6 +79,7 @@ func (h *HTTP) handle(conn net.Conn) bool {
     if err != nil {
         conn.Write([]byte("HTTP/1.1 403 Forbidden\r\n"))
         conn.Write([]byte("\r\n"))
+        log.Printf("File not accessible: %s\n", path)
         return true
     }
 
