@@ -6,9 +6,19 @@ import (
     "net"
     "net/http"
     "time"
+    "strings"
 )
 
+func host2Addr(r *http.Request) string {
+    if strings.Index(r.Host, ":") != -1 {
+        return r.Host
+    } else {
+        return r.Host + ":80"
+    }
+}
+
 func handleTunneling(w http.ResponseWriter, r *http.Request) {
+    log.Printf("Connect Addr:%s, Host:%s\n", host2Addr(r), r.Host)
     dest_conn, err := net.DialTimeout("tcp", r.Host, 10*time.Second)
     if err != nil {
         http.Error(w, err.Error(), http.StatusServiceUnavailable)
@@ -35,6 +45,7 @@ func transfer(destination io.WriteCloser, source io.ReadCloser) {
 }
 
 func handleHTTP(w http.ResponseWriter, req *http.Request) {
+    log.Printf("Get Addr:%s\n", host2Addr(req))
     resp, err := http.DefaultTransport.RoundTrip(req)
     if err != nil {
         http.Error(w, err.Error(), http.StatusServiceUnavailable)
