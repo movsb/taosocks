@@ -1,7 +1,6 @@
 package main
 
 import (
-    "log"
     "strings"
     "os"
     "bufio"
@@ -24,9 +23,6 @@ const (
     IPv4
     Domain
 )
-
-var logn = log.Println
-var logf = log.Printf
 
 type Filter struct {
     suffix  map[string]ProxyType
