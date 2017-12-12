@@ -165,8 +165,6 @@ func (s *SocksProxy) handleV5() {
         port = uint16(portArray[0]) << 8 + uint16(portArray[1])
     }
 
-    strAddr += fmt.Sprintf(":%d", port)
-
     var proxyType ProxyType = Direct
     switch addrType {
     case addrTypeIPv4:
@@ -187,6 +185,8 @@ func (s *SocksProxy) handleV5() {
         }
     case Reject:
     }
+
+    strAddr += fmt.Sprintf(":%d", port)
 
     if rr != nil {
         if rr.Begin(strAddr, s.conn) {
