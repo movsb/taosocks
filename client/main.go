@@ -51,9 +51,22 @@ func (s *Server) handle(conn net.Conn) error {
     var biow = bufio.NewWriter(conn)
     var bio  = bufio.NewReadWriter(bior, biow)
 
-    var sp SocksProxy
+    var first byte
+    if firsts, err := bior.Peek(1); err != nil {
+        logf("empty connection")
+        return err
+    } else {
+        first = firsts[0]
+    }
 
-    sp.Handle(conn, bio)
+    switch first {
+    case '\x05':
+        var sp SocksProxy
+        sp.Handle(conn, bio)
+    default:
+        var hp HTTPProxy
+        hp.Handle(conn, bio)
+    }
 
     return nil
 }

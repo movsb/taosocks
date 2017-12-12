@@ -13,6 +13,8 @@ type Relayer interface {
     Begin(addr string, src net.Conn) bool
     Relay()
     End()
+    ToRemote(b []byte) error
+    ToLocal(b []byte) error
 }
 
 type LocalRelayer struct {
@@ -33,6 +35,16 @@ func (r *LocalRelayer) Begin(addr string, src net.Conn) bool {
 
     r.dst = dst
     return true
+}
+
+func (r *LocalRelayer) ToLocal(b []byte) error {
+    r.src.Write(b)
+    return nil
+}
+
+func (r *LocalRelayer) ToRemote(b []byte) error {
+    r.dst.Write(b)
+    return nil
 }
 
 func (r *LocalRelayer) End() {
@@ -97,7 +109,7 @@ func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
     enc := gob.NewEncoder(r.dst)
     dec := gob.NewDecoder(r.dst)
 
-    err = enc.Encode(internal.OpenPacket{r.addr})
+    err = enc.Encode(internal.OpenPacket{Addr: r.addr})
     if err != nil {
         return false
     }
@@ -113,6 +125,22 @@ func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
     }
 
     return true
+}
+
+func (r *RemoteRelayer) ToLocal(b []byte) error {
+    r.src.Write(b)
+
+    return nil
+}
+
+func (r *RemoteRelayer) ToRemote(b []byte) error {
+    var pkt internal.RelayPacket
+    pkt.Data = b
+
+    enc := gob.NewEncoder(r.dst)
+    enc.Encode(pkt)
+
+    return nil
 }
 
 func (r *RemoteRelayer) End() {
@@ -159,12 +187,12 @@ func (r *RemoteRelayer) src2dst() (int64, error) {
     var err error
 
     for {
-        var pkt internal.RelayPacket
         n, err := r.src.Read(buf)
         if err != nil {
             break
         }
 
+        var pkt internal.RelayPacket
         pkt.Data = buf[:n]
 
         err = enc.Encode(pkt)
