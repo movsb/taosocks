@@ -33,18 +33,16 @@ func (h *HTTPProxy) Handle(conn net.Conn, bio *bufio.ReadWriter) {
 func (h *HTTPProxy) host2addr(r *http.Request) string {
     if strings.Index(r.Host, ":") != -1 {
         return r.Host
-    } else {
-        return r.Host + ":80"
-    }
+    } 
+    return r.Host + ":80"
 }
 
 func(h *HTTPProxy) req2host(r *http.Request) string {
     index := strings.Index(r.Host, ":")
     if index != -1 {
         return r.Host[:index]
-    } else {
-        return r.Host
     }
+    return r.Host
 }
 
 func (h *HTTPProxy) req2bytes(r *http.Request) []byte {
@@ -57,7 +55,7 @@ func (h *HTTPProxy) req2bytes(r *http.Request) []byte {
 
 func (h *HTTPProxy) creqteRelayer(r *http.Request) Relayer {
     host := h.req2host(r)
-    var proxyType ProxyType = Direct
+    var proxyType = Direct
     var isIP = net.ParseIP(host).To4() != nil
     if isIP {
         proxyType = filter.Test(host, IPv4)

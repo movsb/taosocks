@@ -71,7 +71,7 @@ func (s *ServerDialer) readResponse(conn net.Conn) error {
     res.Body.Close()
 
     if res.StatusCode != 101 {
-        return errors.New("Server upgrade protocol error.")
+        return errors.New("server upgrade protocol error")
     }
 
     return nil

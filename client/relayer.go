@@ -62,8 +62,8 @@ func (r *LocalRelayer) Relay() {
     wg := &sync.WaitGroup{}
     wg.Add(2)
 
-    var tx int64 = 0
-    var rx int64 = 0
+    var tx int64
+    var rx int64
 
     go func() {
         tx, _ = io.Copy(r.dst, r.src)
@@ -158,8 +158,8 @@ func (r *RemoteRelayer) Relay() {
     wg := &sync.WaitGroup{}
     wg.Add(2)
 
-    var tx int64 = 0
-    var rx int64 = 0
+    var tx int64
+    var rx int64
 
     go func() {
         tx, _ = r.src2dst()
@@ -183,7 +183,7 @@ func (r *RemoteRelayer) src2dst() (int64, error) {
 
     buf := make([]byte, 4096)
 
-    var all int64 = 0
+    var all int64
     var err error
 
     for {
@@ -210,7 +210,7 @@ func (r *RemoteRelayer) src2dst() (int64, error) {
 func (r *RemoteRelayer) dst2src() (int64, error) {
     dec := gob.NewDecoder(r.dst)
 
-    var all int64 = 0
+    var all int64
     var err error
 
     for {

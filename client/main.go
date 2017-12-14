@@ -35,7 +35,7 @@ func (s *Server) Run(network, addr string) error {
         conn, err := l.Accept()
 
         if err != nil {
-            panic(err)
+            break
         }
 
         go s.handle(conn)
@@ -55,9 +55,9 @@ func (s *Server) handle(conn net.Conn) error {
     if firsts, err := bior.Peek(1); err != nil {
         logf("empty connection")
         return err
-    } else {
-        first = firsts[0]
     }
+
+    first = firsts[0]
 
     switch first {
     case '\x05':
