@@ -1,9 +1,26 @@
 suffix,cn,direct
+
+suffix,qq.com,direct
+suffix,gtimg.com,direct
+suffix,weiyun.com,direct
+
+suffix,taobao.com,direct
+suffix,tmall.com,direct
+suffix,alicdn.com,direct
+
+suffix,jd.com,direct
+suffix,360buyimg.com,direct
+
+suffix,zhihu.com,direct
+suffix,zhimg.com,direct
+
 suffix,baidu.com,direct
 suffix,bdstatic.com,direct
+
 suffix,cnblogs.com,direct
 
 cidr,192.168.0.0/16,direct
 cidr,10.0.0.0/8,direct
 cidr,172.0.0.0/8,direct
 cidr,127.0.0.0/8,direct
+

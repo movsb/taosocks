@@ -4,7 +4,6 @@ import (
     "net"
     "net/http"
     "crypto/tls"
-    "log"
     "errors"
     "bufio"
 )
@@ -28,7 +27,6 @@ func (s *ServerDialer) Dial(server string, insecure bool) (net.Conn, error) {
         if conn != nil {
             conn.Close()
         }
-        log.Printf("error dial server: %s\n", err)
         return nil, err
     }
 
