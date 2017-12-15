@@ -1,23 +1,23 @@
-suffix,cn,direct
+tld,cn,direct
 
-suffix,qq.com,direct
-suffix,gtimg.com,direct
-suffix,weiyun.com,direct
+sld,qq.com,direct
+sld,gtimg.com,direct
+sld,weiyun.com,direct
 
-suffix,taobao.com,direct
-suffix,tmall.com,direct
-suffix,alicdn.com,direct
+sld,taobao.com,direct
+sld,tmall.com,direct
+sld,alicdn.com,direct
 
-suffix,jd.com,direct
-suffix,360buyimg.com,direct
+sld,jd.com,direct
+sld,360buyimg.com,direct
 
-suffix,zhihu.com,direct
-suffix,zhimg.com,direct
+sld,zhihu.com,direct
+sld,zhimg.com,direct
 
-suffix,baidu.com,direct
-suffix,bdstatic.com,direct
+sld,baidu.com,direct
+sld,bdstatic.com,direct
 
-suffix,cnblogs.com,direct
+sld,cnblogs.com,direct
 
 cidr,192.168.0.0/16,direct
 cidr,10.0.0.0/8,direct

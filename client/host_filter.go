@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"strings"
+    "regexp"
 )
 
 type ProxyType uint
@@ -24,16 +25,18 @@ const (
 	Domain
 )
 
+var reSplit = regexp.MustCompile(`[[:alnum:]-]+\.([[:alnum:]]+)$`)
+
 type HostFilter struct {
-	suffix map[string]ProxyType
-	match  map[string]ProxyType
-	cidr   map[*net.IPNet]ProxyType
+	tlds    map[string]ProxyType
+	slds    map[string]ProxyType
+	cidrs   map[*net.IPNet]ProxyType
 }
 
 func (f *HostFilter) Init(path string) {
-	f.suffix = make(map[string]ProxyType)
-	f.match = make(map[string]ProxyType)
-	f.cidr = make(map[*net.IPNet]ProxyType)
+	f.tlds = make(map[string]ProxyType)
+	f.slds = make(map[string]ProxyType)
+	f.cidrs = make(map[*net.IPNet]ProxyType)
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -59,15 +62,17 @@ func (f *HostFilter) Init(path string) {
 				continue
 			}
 
-			if toks[0] == "suffix" {
-				f.suffix[toks[1]] = ty
-			} else if toks[0] == "match" {
-				f.match[toks[1]] = ty
+			if toks[0] == "tld" {
+				f.tlds[toks[1]] = ty
+			} else if toks[0] == "sld" {
+				f.slds[toks[1]] = ty
 			} else if toks[0] == "cidr" {
 				_, ipnet, err := net.ParseCIDR(toks[1])
 				if err == nil {
-					f.cidr[ipnet] = ty
-				}
+					f.cidrs[ipnet] = ty
+				} else {
+                    logf("bad cidr: %s\n", toks[1])
+                }
 			}
 		}
 	}
@@ -83,19 +88,22 @@ func (f *HostFilter) Test(host string, aty AddrType) ProxyType {
 
 	if aty == IPv4 {
 		ip := net.ParseIP(host)
-		for ipnet, ty := range f.cidr {
+		for ipnet, ty := range f.cidrs {
 			if ipnet.Contains(ip) {
 				return ty
 			}
 		}
 	} else if aty == Domain {
-		if ty, ok := f.match[host]; ok {
+        matches := reSplit.FindStringSubmatch(host)
+        sld := matches[0]
+        tld := matches[1]
+
+		if ty, ok := f.tlds[tld]; ok {
 			return ty
 		}
-		for sfx, ty := range f.suffix {
-			if host == sfx || strings.HasSuffix(host, "."+sfx) {
-				return ty
-			}
+
+		if ty, ok := f.slds[sld]; ok {
+            return ty
 		}
 	}
 
