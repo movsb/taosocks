@@ -51,7 +51,7 @@ func (s *Server) handle(conn net.Conn) error {
 
 	var first byte
 	if firsts, err := bior.Peek(1); err != nil {
-		logf("empty connection")
+		// logf("empty connection")
 		return err
 	} else {
 		first = firsts[0]
