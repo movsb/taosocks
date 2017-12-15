@@ -145,7 +145,7 @@ func (s *SocksProxy) handleV5() {
 
 		// Chrome passes IP as domain
 		if net.ParseIP(strAddr).To4() != nil {
-			addrType = addrTypeIPv
+			addrType = addrTypeIPv4
 		}
 	default:
 		logf("unknown address type: %d\n", addrType)
@@ -157,9 +157,9 @@ func (s *SocksProxy) handleV5() {
 	if portArray, err := readn(bio.Reader, 2); err != nil {
 		logf("read port error: %s\n", err)
 		return
+	} else {
+		port = uint16(portArray[0])<<8 + uint16(portArray[1])
 	}
-
-	port = uint16(portArray[0])<<8 + uint16(portArray[1])
 
 	var proxyType = Direct
 	switch addrType {
