@@ -14,7 +14,7 @@ import (
 var logf = log.Printf
 var logn = log.Println
 
-var serverVersion = "taosocks/20171209"
+var serverVersion = "taosocks/20171218"
 
 type HTTP struct {
 

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-    kVersion string = "taosocks/20171209"
+    kVersion string = "taosocks/20171218"
 )
 
 type ServerDialer struct {
