@@ -9,7 +9,6 @@ import (
 )
 
 const (
-    kToken   string = "taosocks"
     kVersion string = "taosocks/20171209"
 )
 
@@ -53,7 +52,8 @@ func (s *ServerDialer) createRequest(server string) *http.Request {
 
     req.Header.Add("Connection", "upgrade")
     req.Header.Add("Upgrade", kVersion)
-    req.Header.Add("Token", kToken)
+    req.Header.Add("Username", config.Username)
+    req.Header.Add("Password", config.Password)
 
     return req
 }

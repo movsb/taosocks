@@ -14,6 +14,8 @@ type Config struct {
 	Listen   string
 	Server   string
 	Insecure bool
+    Username string
+    Password string
 }
 
 var config Config
@@ -73,6 +75,8 @@ func parseConfig() {
 	flag.StringVar(&config.Listen, "listen", "127.0.0.1:1080", "listen address(host:port)")
 	flag.StringVar(&config.Server, "server", "127.0.0.1:1081", "server address(host:port)")
 	flag.BoolVar(&config.Insecure, "insecure", false, "don't verify server certificate")
+    flag.StringVar(&config.Username, "username", "", "login username")
+    flag.StringVar(&config.Password, "password", "", "login password")
 	flag.Parse()
 }
 

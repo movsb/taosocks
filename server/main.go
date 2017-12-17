@@ -15,8 +15,8 @@ type Config struct {
 }
 
 var config Config
-
 var hh HTTP
+var auth Auth
 
 type Server struct {
 
@@ -148,6 +148,8 @@ func parseConfig() {
 
 func main() {
     parseConfig()
+
+    auth.Init("config/users.txt")
 
     s :=  Server{}
     s.Run("tcp", config.Listen)

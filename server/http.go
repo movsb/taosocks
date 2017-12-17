@@ -14,6 +14,8 @@ import (
 var logf = log.Printf
 var logn = log.Println
 
+var serverVersion = "taosocks/20171209"
+
 type HTTP struct {
 
 }
@@ -53,12 +55,26 @@ func (h *HTTP) handle(conn net.Conn) bool {
     }
 
     if req.URL.Path == "/" && strings.ToLower(req.Header.Get("Connection")) == "upgrade" {
-        if req.Header.Get("Upgrade") == "taosocks/20171209" && req.Header.Get("token") == "taosocks" {
-            conn.Write([]byte("HTTP/1.1 101 Switching Protocol\r\n"))
-            conn.Write([]byte("\r\n"))
-            return false
+        ver  := req.Header.Get("Upgrade")
+        user := req.Header.Get("Username")
+        pass := req.Header.Get("Password")
+
+        var ok = false
+
+        if ver == serverVersion {
+            if auth.Test(user, pass) {
+                conn.Write([]byte("HTTP/1.1 101 Switching Protocol\r\n"))
+                conn.Write([]byte("\r\n"))
+                ok = true
+            } else {
+                logf("bad user: %s:%s\n", user, pass)
+            }
         } else {
-            log.Printf("Invalid upgrade: %s\n", req)
+            logf("bad version: %s\n", ver)
+        }
+
+        if ok {
+            return false
         }
     }
 
