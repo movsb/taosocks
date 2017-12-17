@@ -26,6 +26,11 @@ const (
 )
 
 var reSplit = regexp.MustCompile(`[[:alnum:]-]+\.([[:alnum:]]+)$`)
+var reIsComment = regexp.MustCompile(`^[ \t]*#`)
+
+func isComment(line string) bool {
+	return reIsComment.MatchString(line)
+}
 
 type HostFilter struct {
 	tlds    map[string]ProxyType
@@ -48,6 +53,9 @@ func (f *HostFilter) Init(path string) {
 
 	for scanner.Scan() {
 		rule := scanner.Text()
+		if isComment(rule) {
+			continue
+		}
 		toks := strings.Split(rule, ",")
 		if len(toks) == 3 {
 			var ty ProxyType
