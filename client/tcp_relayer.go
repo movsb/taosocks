@@ -6,7 +6,7 @@ import (
 	"log"
 	"net"
 	"sync"
-	"taosocks/internal"
+	"../internal"
 )
 
 type Relayer interface {

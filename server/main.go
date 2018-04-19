@@ -7,7 +7,7 @@ import (
     "encoding/gob"
     "flag"
     "crypto/tls"
-    "taosocks/internal"
+    "../internal"
 )
 
 type Config struct {
