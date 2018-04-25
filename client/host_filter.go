@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"net"
 	"os"
+	"regexp"
 	"strings"
-    "regexp"
 )
 
 type ProxyType uint
@@ -36,9 +36,16 @@ type HostFilter struct {
 	tlds    map[string]ProxyType
 	slds    map[string]ProxyType
 	cidrs   map[*net.IPNet]ProxyType
+	defType ProxyType
 }
 
-func (f *HostFilter) Init(path string) {
+func (f *HostFilter) Init(blackMode bool, path string) {
+	if blackMode {
+		f.defType = Direct
+	} else {
+		f.defType = Proxy
+	}
+
 	f.tlds = make(map[string]ProxyType)
 	f.slds = make(map[string]ProxyType)
 	f.cidrs = make(map[*net.IPNet]ProxyType)
@@ -79,8 +86,8 @@ func (f *HostFilter) Init(path string) {
 				if err == nil {
 					f.cidrs[ipnet] = ty
 				} else {
-                    logf("bad cidr: %s\n", toks[1])
-                }
+					logf("bad cidr: %s\n", toks[1])
+				}
 			}
 		}
 	}
@@ -102,18 +109,18 @@ func (f *HostFilter) Test(host string, aty AddrType) ProxyType {
 			}
 		}
 	} else if aty == Domain {
-        matches := reSplit.FindStringSubmatch(host)
-        sld := matches[0]
-        tld := matches[1]
+		matches := reSplit.FindStringSubmatch(host)
+		sld := matches[0]
+		tld := matches[1]
 
 		if ty, ok := f.tlds[tld]; ok {
 			return ty
 		}
 
 		if ty, ok := f.slds[sld]; ok {
-            return ty
+			return ty
 		}
 	}
 
-	return Proxy
+	return f.defType
 }
