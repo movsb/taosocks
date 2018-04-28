@@ -161,7 +161,7 @@ func (s *SocksProxy) handleV5() {
 		port = uint16(portArray[0])<<8 + uint16(portArray[1])
 	}
 
-	var proxyType = Direct
+	var proxyType = proxyTypeDefault
 	switch addrType {
 	case addrTypeIPv4:
 		proxyType = filter.Test(strAddr, IPv4)
@@ -169,28 +169,50 @@ func (s *SocksProxy) handleV5() {
 		proxyType = filter.Test(strAddr, Domain)
 	}
 
-	var rr Relayer
+	var rr []Relayer
 
 	switch proxyType {
-	case Direct:
-		rr = &LocalRelayer{}
-	case Proxy:
-		rr = &RemoteRelayer{
+	case proxyTypeDirect:
+		rr = []Relayer{&LocalRelayer{}}
+	case proxyTypeProxy:
+		rr = []Relayer{&RemoteRelayer{
 			Server:   config.Server,
 			Insecure: config.Insecure,
+		}}
+	case proxyTypeDefault:
+		rr = []Relayer{
+			&LocalRelayer{},
+			&RemoteRelayer{
+				Server:   config.Server,
+				Insecure: config.Insecure,
+			},
 		}
-	case Reject:
+	case proxyTypeReject:
 	}
 
+	host := strAddr
 	strAddr += fmt.Sprintf(":%d", port)
 
-	if rr != nil {
-		if rr.Begin(strAddr, s.conn) {
+	var relayed bool
+
+	for _, r := range rr {
+		if r.Begin(strAddr, s.conn) {
 			s.conn.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0})
-			rr.Relay()
-		} else {
-			s.conn.Write([]byte{5, 1, 0, 1, 0, 0, 0, 0, 0, 0})
-			s.conn.Close()
+			r.Relay()
+			switch r.(type) {
+			case *RemoteRelayer:
+				if proxyType == proxyTypeDefault {
+					filter.Add(host, proxyTypeProxy)
+				}
+
+			}
+			relayed = true
+			break
 		}
+	}
+
+	if !relayed {
+		s.conn.Write([]byte{5, 1, 0, 1, 0, 0, 0, 0, 0, 0})
+		s.conn.Close()
 	}
 }

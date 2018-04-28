@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"log"
 	"net"
 	"os"
 	"regexp"
@@ -12,9 +13,10 @@ type ProxyType uint
 
 const (
 	_ ProxyType = iota
-	Direct
-	Proxy
-	Reject
+	proxyTypeDefault
+	proxyTypeDirect
+	proxyTypeProxy
+	proxyTypeReject
 )
 
 type AddrType uint
@@ -33,19 +35,12 @@ func isComment(line string) bool {
 }
 
 type HostFilter struct {
-	tlds    map[string]ProxyType
-	slds    map[string]ProxyType
-	cidrs   map[*net.IPNet]ProxyType
-	defType ProxyType
+	tlds  map[string]ProxyType
+	slds  map[string]ProxyType
+	cidrs map[*net.IPNet]ProxyType
 }
 
-func (f *HostFilter) Init(blackMode bool, path string) {
-	if blackMode {
-		f.defType = Direct
-	} else {
-		f.defType = Proxy
-	}
-
+func (f *HostFilter) Init(path string) {
 	f.tlds = make(map[string]ProxyType)
 	f.slds = make(map[string]ProxyType)
 	f.cidrs = make(map[*net.IPNet]ProxyType)
@@ -68,11 +63,11 @@ func (f *HostFilter) Init(blackMode bool, path string) {
 			var ty ProxyType
 			switch toks[2] {
 			case "direct":
-				ty = Direct
+				ty = proxyTypeDirect
 			case "proxy":
-				ty = Proxy
+				ty = proxyTypeProxy
 			case "reject":
-				ty = Reject
+				ty = proxyTypeReject
 			default:
 				continue
 			}
@@ -93,12 +88,19 @@ func (f *HostFilter) Init(blackMode bool, path string) {
 	}
 }
 
+func (f *HostFilter) Add(host string, proxyType ProxyType) {
+	host = strings.ToLower(host)
+	matches := reSplit.FindStringSubmatch(host)
+	f.slds[matches[0]] = proxyType
+	log.Printf("添加规则：%s => %d\n", host, proxyType)
+}
+
 func (f *HostFilter) Test(host string, aty AddrType) ProxyType {
 	host = strings.ToLower(host)
 
 	// if is toplevel
 	if !strings.Contains(host, ".") {
-		return Direct
+		return proxyTypeDirect
 	}
 
 	if aty == IPv4 {
@@ -122,5 +124,5 @@ func (f *HostFilter) Test(host string, aty AddrType) ProxyType {
 		}
 	}
 
-	return f.defType
+	return proxyTypeDefault
 }
