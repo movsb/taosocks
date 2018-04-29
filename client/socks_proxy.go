@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"net"
 )
 
@@ -142,11 +143,6 @@ func (s *SocksProxy) handleV5() {
 		}
 
 		strAddr = string(nameBytes)
-
-		// Chrome passes IP as domain
-		if net.ParseIP(strAddr).To4() != nil {
-			addrType = addrTypeIPv4
-		}
 	default:
 		logf("unknown address type: %d\n", addrType)
 		return
@@ -161,58 +157,19 @@ func (s *SocksProxy) handleV5() {
 		port = uint16(portArray[0])<<8 + uint16(portArray[1])
 	}
 
-	var proxyType = proxyTypeDefault
-	switch addrType {
-	case addrTypeIPv4:
-		proxyType = filter.Test(strAddr, IPv4)
-	case addrTypeDomain:
-		proxyType = filter.Test(strAddr, Domain)
-	}
+	hostport := fmt.Sprintf("%s:%d", strAddr, port)
 
-	var rr []Relayer
+	s.relay(hostport, s.conn)
+}
 
-	switch proxyType {
-	case proxyTypeDirect:
-		rr = []Relayer{&LocalRelayer{}}
-	case proxyTypeProxy:
-		rr = []Relayer{&RemoteRelayer{
-			Server:   config.Server,
-			Insecure: config.Insecure,
-		}}
-	case proxyTypeDefault:
-		rr = []Relayer{
-			&LocalRelayer{},
-			&RemoteRelayer{
-				Server:   config.Server,
-				Insecure: config.Insecure,
-			},
-		}
-	case proxyTypeReject:
-	}
+func (s *SocksProxy) relay(host string, conn net.Conn) {
+	sr := &SmartRelayer{}
+	err := sr.Relay(host, conn, func(r Relayer) error {
+		return r.ToLocal([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0})
+	})
 
-	host := strAddr
-	strAddr += fmt.Sprintf(":%d", port)
-
-	var relayed bool
-
-	for _, r := range rr {
-		if r.Begin(strAddr, s.conn) {
-			s.conn.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0})
-			r.Relay()
-			switch r.(type) {
-			case *RemoteRelayer:
-				if proxyType == proxyTypeDefault {
-					filter.Add(host, proxyTypeProxy)
-				}
-
-			}
-			relayed = true
-			break
-		}
-	}
-
-	if !relayed {
-		s.conn.Write([]byte{5, 1, 0, 1, 0, 0, 0, 0, 0, 0})
-		s.conn.Close()
+	if err != nil {
+		conn.Write([]byte{5, 1, 0, 1, 0, 0, 0, 0, 0, 0})
+		log.Println(err)
 	}
 }

@@ -53,50 +53,16 @@ func (h *HTTPProxy) req2bytes(r *http.Request) []byte {
 	return buf.Bytes()
 }
 
-func (h *HTTPProxy) creqteRelayer(r *http.Request) Relayer {
-	host := h.req2host(r)
-	var proxyType = proxyTypeDirect
-	var isIP = net.ParseIP(host).To4() != nil
-	if isIP {
-		proxyType = filter.Test(host, IPv4)
-	} else {
-		proxyType = filter.Test(host, Domain)
-	}
-
-	var rr Relayer
-
-	switch proxyType {
-	case proxyTypeDirect:
-		rr = &LocalRelayer{}
-	case proxyTypeProxy:
-		rr = &RemoteRelayer{
-			Server:   config.Server,
-			Insecure: config.Insecure,
-		}
-	case proxyTypeReject:
-	}
-
-	return rr
-}
-
 func (h *HTTPProxy) handleConnect(r *http.Request) {
-	var rr = h.creqteRelayer(r)
-	if rr != nil {
-		if rr.Begin(h.host2addr(r), h.conn) {
-			h.conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
-			rr.Relay()
-			rr.End()
-		}
-	}
+	sr := &SmartRelayer{}
+	sr.Relay(h.host2addr(r), h.conn, func(r Relayer) error {
+		return r.ToLocal([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+	})
 }
 
 func (h *HTTPProxy) handlePlain(r *http.Request) {
-	var rr = h.creqteRelayer(r)
-	if rr != nil {
-		if rr.Begin(h.host2addr(r), h.conn) {
-			rr.ToRemote(h.req2bytes(r))
-			rr.Relay()
-			rr.End()
-		}
-	}
+	sr := &SmartRelayer{}
+	sr.Relay(h.host2addr(r), h.conn, func(rr Relayer) error {
+		return rr.ToRemote(h.req2bytes(r))
+	})
 }

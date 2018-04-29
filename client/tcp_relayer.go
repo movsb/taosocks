@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"../internal"
 )
@@ -36,7 +37,7 @@ func (r *LocalRelayer) Begin(addr string, src net.Conn) bool {
 	r.src = src
 	r.addr = addr
 
-	dst, err := net.Dial("tcp", addr)
+	dst, err := net.DialTimeout("tcp", addr, 10*time.Second)
 	if err != nil {
 		log.Printf("Dial host:%s -  %s\n", addr, err)
 		return false
@@ -98,9 +99,6 @@ const kVersion string = "taosocks/20171218"
 // traffics through remote servers by using
 // taosocks protocol
 type RemoteRelayer struct {
-	Server   string
-	Insecure bool
-
 	src  net.Conn
 	dst  net.Conn
 	addr string
@@ -108,17 +106,17 @@ type RemoteRelayer struct {
 
 func (r *RemoteRelayer) dialServer() (net.Conn, error) {
 	tlscfg := &tls.Config{
-		InsecureSkipVerify: r.Insecure,
+		InsecureSkipVerify: config.Insecure,
 	}
 
-	conn, err := tls.Dial("tcp4", r.Server, tlscfg)
+	conn, err := tls.Dial("tcp4", config.Server, tlscfg)
 	if err != nil {
 		return nil, err
 	}
 
 	// the upgrade request
 	req, _ := http.NewRequest("GET", "/", nil)
-	req.Host = r.Server
+	req.Host = config.Server
 	req.Header.Add("Connection", "upgrade")
 	req.Header.Add("Upgrade", kVersion)
 	req.Header.Add("Username", config.Username)
@@ -154,6 +152,7 @@ func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
 
 	dst, err := r.dialServer()
 	if err != nil {
+		log.Println(err)
 		return false
 	}
 
@@ -283,4 +282,61 @@ func (r *RemoteRelayer) dst2src() (int64, error) {
 	}
 
 	return all, err
+}
+
+type SmartRelayer struct {
+}
+
+func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Relayer) error) error {
+	hostname, _, _ := net.SplitHostPort(host)
+	proxyType := filter.Test(hostname)
+
+	var r Relayer
+
+	switch proxyType {
+	case proxyTypeDefault:
+		fallthrough
+	case proxyTypeDirect:
+		r = &LocalRelayer{}
+	case proxyTypeProxy:
+		r = &RemoteRelayer{}
+	case proxyTypeReject:
+		return errors.New("host is rejected")
+	}
+
+	beginned := false
+	useRemote := false
+
+	if !r.Begin(host, conn) {
+		if r.(*LocalRelayer) != nil {
+			r = &RemoteRelayer{}
+			if r.Begin(host, conn) {
+				beginned = true
+				useRemote = true
+			}
+		}
+	} else {
+		beginned = true
+	}
+
+	if !beginned {
+		conn.Close()
+		return errors.New("no relayer can relay such host")
+	}
+
+	if useRemote {
+		filter.Add(hostname)
+	}
+
+	if beforeRelay != nil {
+		if beforeRelay(r) != nil {
+			conn.Close()
+			return errors.New("beforeRelay returns an error")
+		}
+	}
+
+	r.Relay()
+	r.End()
+
+	return nil
 }

@@ -27,7 +27,6 @@ const (
 	Domain
 )
 
-var reSplit = regexp.MustCompile(`[[:alnum:]-]+\.([[:alnum:]]+)$`)
 var reIsComment = regexp.MustCompile(`^[ \t]*#`)
 
 func isComment(line string) bool {
@@ -35,15 +34,17 @@ func isComment(line string) bool {
 }
 
 type HostFilter struct {
-	tlds  map[string]ProxyType
-	slds  map[string]ProxyType
+	chAdd chan string
+	hosts map[string]ProxyType
 	cidrs map[*net.IPNet]ProxyType
 }
 
 func (f *HostFilter) Init(path string) {
-	f.tlds = make(map[string]ProxyType)
-	f.slds = make(map[string]ProxyType)
+	f.chAdd = make(chan string)
+	f.hosts = make(map[string]ProxyType)
 	f.cidrs = make(map[*net.IPNet]ProxyType)
+
+	go f.addRoutine()
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -72,10 +73,8 @@ func (f *HostFilter) Init(path string) {
 				continue
 			}
 
-			if toks[0] == "tld" {
-				f.tlds[toks[1]] = ty
-			} else if toks[0] == "sld" {
-				f.slds[toks[1]] = ty
+			if toks[0] == "host" {
+				f.hosts[toks[1]] = ty
 			} else if toks[0] == "cidr" {
 				_, ipnet, err := net.ParseCIDR(toks[1])
 				if err == nil {
@@ -88,19 +87,35 @@ func (f *HostFilter) Init(path string) {
 	}
 }
 
-func (f *HostFilter) Add(host string, proxyType ProxyType) {
-	host = strings.ToLower(host)
-	matches := reSplit.FindStringSubmatch(host)
-	f.slds[matches[0]] = proxyType
-	log.Printf("添加规则：%s => %d\n", host, proxyType)
+func (f *HostFilter) Add(host string) {
+	f.chAdd <- host
 }
 
-func (f *HostFilter) Test(host string, aty AddrType) ProxyType {
+func (f *HostFilter) addRoutine() {
+	for s := ""; ; {
+		s = <-f.chAdd
+		if s == "" {
+			break
+		}
+		f.hosts[s] = proxyTypeProxy
+		log.Printf("+ 添加代理规则：%s\n", s)
+	}
+}
+
+func (f *HostFilter) Test(host string) ProxyType {
+	if colon := strings.IndexByte(host, ':'); colon != -1 {
+		host = host[:colon]
+	}
 	host = strings.ToLower(host)
 
-	// if is toplevel
+	// if is TopLevel
 	if !strings.Contains(host, ".") {
 		return proxyTypeDirect
+	}
+
+	aty := Domain
+	if net.ParseIP(host).To4() != nil {
+		aty = IPv4
 	}
 
 	if aty == IPv4 {
@@ -111,15 +126,7 @@ func (f *HostFilter) Test(host string, aty AddrType) ProxyType {
 			}
 		}
 	} else if aty == Domain {
-		matches := reSplit.FindStringSubmatch(host)
-		sld := matches[0]
-		tld := matches[1]
-
-		if ty, ok := f.tlds[tld]; ok {
-			return ty
-		}
-
-		if ty, ok := f.slds[sld]; ok {
+		if ty, ok := f.hosts[host]; ok {
 			return ty
 		}
 	}
