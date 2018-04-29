@@ -19,8 +19,7 @@ import (
 // relaying a connection
 type Relayer interface {
 	Begin(addr string, src net.Conn) bool
-	Relay()
-	End()
+	Relay() (int64, int64)
 	ToRemote(b []byte) error
 	ToLocal(b []byte) error
 }
@@ -57,7 +56,7 @@ func (r *LocalRelayer) ToRemote(b []byte) error {
 	return nil
 }
 
-func (r *LocalRelayer) End() {
+func (r *LocalRelayer) end() {
 	if r.src != nil {
 		r.src.Close()
 	}
@@ -66,7 +65,7 @@ func (r *LocalRelayer) End() {
 	}
 }
 
-func (r *LocalRelayer) Relay() {
+func (r *LocalRelayer) Relay() (int64, int64) {
 	log.Printf("> [Direct] %s\n", r.addr)
 
 	wg := &sync.WaitGroup{}
@@ -75,22 +74,27 @@ func (r *LocalRelayer) Relay() {
 	var tx int64
 	var rx int64
 
+	var errTx, errRx error
+
 	go func() {
-		tx, _ = io.Copy(r.dst, r.src)
+		tx, errTx = io.Copy(r.dst, r.src)
 		wg.Done()
-		r.End()
+		r.end()
 	}()
 
 	go func() {
-		rx, _ = io.Copy(r.src, r.dst)
+		rx, errRx = io.Copy(r.src, r.dst)
 		wg.Done()
-		r.End()
+		r.end()
 	}()
 
 	wg.Wait()
 
 	log.Printf("< [Direct] %s [TX:%d, RX:%d]\n", r.addr, tx, rx)
 
+	_, _ = errTx, errRx
+
+	return tx, rx
 }
 
 const kVersion string = "taosocks/20171218"
@@ -195,7 +199,7 @@ func (r *RemoteRelayer) ToRemote(b []byte) error {
 	return nil
 }
 
-func (r *RemoteRelayer) End() {
+func (r *RemoteRelayer) end() {
 	if r.src != nil {
 		r.src.Close()
 	}
@@ -204,7 +208,7 @@ func (r *RemoteRelayer) End() {
 	}
 }
 
-func (r *RemoteRelayer) Relay() {
+func (r *RemoteRelayer) Relay() (int64, int64) {
 	log.Printf("> [Proxy ] %s\n", r.addr)
 
 	wg := &sync.WaitGroup{}
@@ -216,18 +220,20 @@ func (r *RemoteRelayer) Relay() {
 	go func() {
 		tx, _ = r.src2dst()
 		wg.Done()
-		r.End()
+		r.end()
 	}()
 
 	go func() {
 		rx, _ = r.dst2src()
 		wg.Done()
-		r.End()
+		r.end()
 	}()
 
 	wg.Wait()
 
 	log.Printf("< [Proxy ] %s [TX:%d, RX:%d]\n", r.addr, tx, rx)
+
+	return tx, rx
 }
 
 func (r *RemoteRelayer) src2dst() (int64, error) {
@@ -288,7 +294,7 @@ type SmartRelayer struct {
 }
 
 func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Relayer) error) error {
-	hostname, _, _ := net.SplitHostPort(host)
+	hostname, portstr, _ := net.SplitHostPort(host)
 	proxyType := filter.Test(hostname)
 
 	var r Relayer
@@ -336,8 +342,10 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 		}
 	}
 
-	r.Relay()
-	r.End()
+	_, nRx := r.Relay()
+	if nRx == 0 && (portstr == "80" || portstr == "443") {
+		filter.Add(hostname)
+	}
 
 	return nil
 }
