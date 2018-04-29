@@ -36,17 +36,17 @@ func isComment(line string) bool {
 }
 
 type HostFilter struct {
-	chAdd chan string
+	ch    chan string
 	hosts map[string]ProxyType
 	cidrs map[*net.IPNet]ProxyType
 }
 
 func (f *HostFilter) Init(path string) {
-	f.chAdd = make(chan string)
+	f.ch = make(chan string)
 	f.hosts = make(map[string]ProxyType)
 	f.cidrs = make(map[*net.IPNet]ProxyType)
 
-	go f.addRoutine()
+	go f.opRoutine()
 
 	if file, err := os.Open(path); err != nil {
 		logf("rule file not found: %s\n", path)
@@ -93,17 +93,31 @@ func (f *HostFilter) scanFile(reader io.Reader, isTmp bool) {
 }
 
 func (f *HostFilter) Add(host string) {
-	f.chAdd <- host
+	f.ch <- "+" + host
 }
 
-func (f *HostFilter) addRoutine() {
+func (f *HostFilter) Del(host string) {
+	f.ch <- "-" + host
+}
+
+func (f *HostFilter) opRoutine() {
 	for s := ""; ; {
-		s = <-f.chAdd
+		s = <-f.ch
 		if s == "" {
 			break
 		}
-		f.hosts[s] = proxyTypeProxy
-		log.Printf("+ 添加代理规则：%s\n", s)
+
+		op := s[0]
+		host := s[1:]
+
+		switch op {
+		case '+':
+			f.hosts[host] = proxyTypeProxy
+			log.Printf("+ 添加代理规则：%s\n", host)
+		case '-':
+			delete(f.hosts, host)
+			log.Printf("- 删除代理规则：%s\n", host)
+		}
 	}
 }
 

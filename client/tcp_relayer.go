@@ -342,9 +342,15 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 		}
 	}
 
-	_, nRx := r.Relay()
-	if nRx == 0 && (portstr == "80" || portstr == "443") {
-		filter.Add(hostname)
+	nTx, nRx := r.Relay()
+
+	if nTx != 0 && nRx == 0 && (portstr == "80" || portstr == "443") {
+		switch r.(type) {
+		case *LocalRelayer:
+			filter.Add(hostname)
+		case *RemoteRelayer:
+			filter.Del(hostname)
+		}
 	}
 
 	return nil
