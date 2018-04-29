@@ -1,23 +1,7 @@
-tld,cn,direct
-
-sld,qq.com,direct
-sld,gtimg.com,direct
-sld,weiyun.com,direct
-
-sld,taobao.com,direct
-sld,tmall.com,direct
-sld,alicdn.com,direct
-
-sld,jd.com,direct
-sld,360buyimg.com,direct
-
-sld,zhihu.com,direct
-sld,zhimg.com,direct
-
-sld,baidu.com,direct
-sld,bdstatic.com,direct
-
-sld,cnblogs.com,direct
+host,google.com,proxy
+host,youtube.com,proxy
+host,wikipedia.org,proxy
+host,googlevideo.com,proxy
 
 cidr,192.168.0.0/16,direct
 cidr,10.0.0.0/8,direct

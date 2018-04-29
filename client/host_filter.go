@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -28,6 +29,7 @@ const (
 )
 
 var reIsComment = regexp.MustCompile(`^[ \t]*#`)
+var reSplitHost = regexp.MustCompile(`\.([^.]+\.[^.]+)$`)
 
 func isComment(line string) bool {
 	return reIsComment.MatchString(line)
@@ -46,13 +48,16 @@ func (f *HostFilter) Init(path string) {
 
 	go f.addRoutine()
 
-	file, err := os.Open(path)
-	if err != nil {
+	if file, err := os.Open(path); err != nil {
 		logf("rule file not found: %s\n", path)
-		return
+	} else {
+		f.scanFile(file, false)
+		file.Close()
 	}
+}
 
-	scanner := bufio.NewScanner(file)
+func (f *HostFilter) scanFile(reader io.Reader, isTmp bool) {
+	scanner := bufio.NewScanner(reader)
 
 	for scanner.Scan() {
 		rule := scanner.Text()
@@ -106,6 +111,7 @@ func (f *HostFilter) Test(host string) ProxyType {
 	if colon := strings.IndexByte(host, ':'); colon != -1 {
 		host = host[:colon]
 	}
+
 	host = strings.ToLower(host)
 
 	// if is TopLevel
@@ -128,6 +134,13 @@ func (f *HostFilter) Test(host string) ProxyType {
 	} else if aty == Domain {
 		if ty, ok := f.hosts[host]; ok {
 			return ty
+		}
+
+		matches := reSplitHost.FindStringSubmatch(host)
+		if len(matches) == 2 {
+			if ty, ok := f.hosts[matches[1]]; ok {
+				return ty
+			}
 		}
 	}
 

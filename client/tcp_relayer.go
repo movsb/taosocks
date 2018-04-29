@@ -308,7 +308,8 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	useRemote := false
 
 	if !r.Begin(host, conn) {
-		if r.(*LocalRelayer) != nil {
+		switch r.(type) {
+		case *LocalRelayer:
 			r = &RemoteRelayer{}
 			if r.Begin(host, conn) {
 				beginned = true
