@@ -319,11 +319,9 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	var r Relayer
 
 	switch proxyType {
-	case proxyTypeDefault:
-		fallthrough
-	case proxyTypeDirect:
+	case proxyTypeDefault, proxyTypeDirect:
 		r = &LocalRelayer{}
-	case proxyTypeProxy:
+	case proxyTypeProxy, proxyTypeAuto:
 		r = &RemoteRelayer{}
 	case proxyTypeReject:
 		return errors.New("host is rejected")

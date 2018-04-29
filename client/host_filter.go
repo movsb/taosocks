@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-type ProxyType uint
+type ProxyType byte
 
 const (
 	_ ProxyType = iota
@@ -17,6 +17,7 @@ const (
 	proxyTypeDirect
 	proxyTypeProxy
 	proxyTypeReject
+	proxyTypeAuto
 )
 
 type AddrType uint
@@ -38,6 +39,47 @@ type HostFilter struct {
 	ch    chan string
 	hosts map[string]ProxyType
 	cidrs map[*net.IPNet]ProxyType
+}
+
+func (f *HostFilter) SaveAuto(path string) {
+	file, err := os.Create(path)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	w := bufio.NewWriter(file)
+
+	for k, t := range f.hosts {
+		if t == proxyTypeAuto {
+			w.WriteString(k)
+			w.WriteByte('\n')
+		}
+	}
+
+	w.Flush()
+	file.Close()
+}
+
+func (f *HostFilter) LoadAuto(path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		return
+	}
+
+	defer file.Close()
+
+	scn := bufio.NewScanner(file)
+
+	n := 0
+
+	for scn.Scan() {
+		host := scn.Text()
+		f.hosts[host] = proxyTypeAuto
+		n++
+	}
+
+	tslog.Green("加载了 %d 条自动规则", n)
 }
 
 func (f *HostFilter) Init(path string) {
@@ -111,7 +153,7 @@ func (f *HostFilter) opRoutine() {
 
 		switch op {
 		case '+':
-			f.hosts[host] = proxyTypeProxy
+			f.hosts[host] = proxyTypeAuto
 			tslog.Green("+ 添加代理规则：%s", host)
 		case '-':
 			delete(f.hosts, host)

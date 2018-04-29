@@ -3,8 +3,11 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 
 	"../internal"
 )
@@ -86,10 +89,24 @@ func parseConfig() {
 	flag.Parse()
 }
 
+func handleInterrupt() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		filter.SaveAuto("config/rules-auto.txt")
+		fmt.Println()
+		os.Exit(0)
+	}()
+}
+
 func main() {
+	handleInterrupt()
+
 	parseConfig()
 
 	filter.Init("config/rules.txt")
+	filter.LoadAuto("config/rules-auto.txt")
 
 	s := xServer{}
 	s.Run("tcp4", config.Listen)
