@@ -9,7 +9,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"../internal"
@@ -19,9 +21,17 @@ import (
 // relaying a connection
 type Relayer interface {
 	Begin(addr string, src net.Conn) bool
-	Relay() (int64, int64)
+	Relay() *RelayResult
 	ToRemote(b []byte) error
 	ToLocal(b []byte) error
+}
+
+// RelayResult contains
+type RelayResult struct {
+	errTx error
+	errRx error
+	nTx   int64
+	nRx   int64
 }
 
 // LocalRelayer is a relayer that relays all
@@ -56,16 +66,7 @@ func (r *LocalRelayer) ToRemote(b []byte) error {
 	return nil
 }
 
-func (r *LocalRelayer) end() {
-	if r.src != nil {
-		r.src.Close()
-	}
-	if r.dst != nil {
-		r.dst.Close()
-	}
-}
-
-func (r *LocalRelayer) Relay() (int64, int64) {
+func (r *LocalRelayer) Relay() *RelayResult {
 	log.Printf("> [Direct] %s\n", r.addr)
 
 	wg := &sync.WaitGroup{}
@@ -79,22 +80,34 @@ func (r *LocalRelayer) Relay() (int64, int64) {
 	go func() {
 		tx, errTx = io.Copy(r.dst, r.src)
 		wg.Done()
-		r.end()
+		if errTx != nil {
+			r.src.Close()
+			r.dst.Close()
+		}
 	}()
 
 	go func() {
 		rx, errRx = io.Copy(r.src, r.dst)
 		wg.Done()
-		r.end()
+		if errRx != nil {
+			r.src.Close()
+			r.dst.Close()
+		}
 	}()
 
 	wg.Wait()
 
+	r.src.Close()
+	r.dst.Close()
+
 	log.Printf("< [Direct] %s [TX:%d, RX:%d]\n", r.addr, tx, rx)
 
-	_, _ = errTx, errRx
-
-	return tx, rx
+	return &RelayResult{
+		errTx: errTx,
+		errRx: errRx,
+		nTx:   tx,
+		nRx:   rx,
+	}
 }
 
 const kVersion string = "taosocks/20171218"
@@ -199,16 +212,7 @@ func (r *RemoteRelayer) ToRemote(b []byte) error {
 	return nil
 }
 
-func (r *RemoteRelayer) end() {
-	if r.src != nil {
-		r.src.Close()
-	}
-	if r.dst != nil {
-		r.dst.Close()
-	}
-}
-
-func (r *RemoteRelayer) Relay() (int64, int64) {
+func (r *RemoteRelayer) Relay() *RelayResult {
 	log.Printf("> [Proxy ] %s\n", r.addr)
 
 	wg := &sync.WaitGroup{}
@@ -217,23 +221,39 @@ func (r *RemoteRelayer) Relay() (int64, int64) {
 	var tx int64
 	var rx int64
 
+	var errTx, errRx error
+
 	go func() {
-		tx, _ = r.src2dst()
+		tx, errTx = r.src2dst()
 		wg.Done()
-		r.end()
+		if errTx != nil {
+			r.src.Close()
+			r.dst.Close()
+		}
 	}()
 
 	go func() {
-		rx, _ = r.dst2src()
+		rx, errRx = r.dst2src()
 		wg.Done()
-		r.end()
+		if errRx != nil {
+			r.src.Close()
+			r.dst.Close()
+		}
 	}()
 
 	wg.Wait()
 
+	r.src.Close()
+	r.dst.Close()
+
 	log.Printf("< [Proxy ] %s [TX:%d, RX:%d]\n", r.addr, tx, rx)
 
-	return tx, rx
+	return &RelayResult{
+		errTx: errTx,
+		errRx: errRx,
+		nTx:   tx,
+		nRx:   rx,
+	}
 }
 
 func (r *RemoteRelayer) src2dst() (int64, error) {
@@ -342,14 +362,24 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 		}
 	}
 
-	nTx, nRx := r.Relay()
+	rr := r.Relay()
 
-	if nTx != 0 && nRx == 0 && (portstr == "80" || portstr == "443") {
-		switch r.(type) {
-		case *LocalRelayer:
-			filter.Add(hostname)
-		case *RemoteRelayer:
-			filter.Del(hostname)
+	if rr.nTx != 0 && rr.nRx == 0 {
+		isHTTPPort := portstr == "80" || portstr == "443"
+		isReset := false
+
+		if opErr, ok := rr.errRx.(*net.OpError); ok {
+			// TODO: 只能比较字符串？
+			isReset = strings.Contains(opErr.Err.Error(), syscall.ECONNRESET.Error())
+		}
+
+		if isHTTPPort || isReset {
+			switch r.(type) {
+			case *LocalRelayer:
+				filter.Add(hostname)
+			case *RemoteRelayer:
+				filter.Del(hostname)
+			}
 		}
 	}
 
