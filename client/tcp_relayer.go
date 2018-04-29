@@ -6,7 +6,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -48,7 +47,7 @@ func (r *LocalRelayer) Begin(addr string, src net.Conn) bool {
 
 	dst, err := net.DialTimeout("tcp", addr, 10*time.Second)
 	if err != nil {
-		log.Printf("Dial host:%s -  %s\n", addr, err)
+		tslog.Red("? Dial host:%s -  %s\n", addr, err)
 		return false
 	}
 
@@ -67,7 +66,7 @@ func (r *LocalRelayer) ToRemote(b []byte) error {
 }
 
 func (r *LocalRelayer) Relay() *RelayResult {
-	log.Printf("> [Direct] %s\n", r.addr)
+	tslog.Log("> [Direct] %s", r.addr)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
@@ -100,7 +99,7 @@ func (r *LocalRelayer) Relay() *RelayResult {
 	r.src.Close()
 	r.dst.Close()
 
-	log.Printf("< [Direct] %s [TX:%d, RX:%d]\n", r.addr, tx, rx)
+	tslog.Gray("< [Direct] %s [TX:%d, RX:%d]", r.addr, tx, rx)
 
 	return &RelayResult{
 		errTx: errTx,
@@ -169,7 +168,7 @@ func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
 
 	dst, err := r.dialServer()
 	if err != nil {
-		log.Println(err)
+		tslog.Red("%s", err)
 		return false
 	}
 
@@ -213,7 +212,7 @@ func (r *RemoteRelayer) ToRemote(b []byte) error {
 }
 
 func (r *RemoteRelayer) Relay() *RelayResult {
-	log.Printf("> [Proxy ] %s\n", r.addr)
+	tslog.Log("> [Proxy ] %s", r.addr)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
@@ -246,7 +245,7 @@ func (r *RemoteRelayer) Relay() *RelayResult {
 	r.src.Close()
 	r.dst.Close()
 
-	log.Printf("< [Proxy ] %s [TX:%d, RX:%d]\n", r.addr, tx, rx)
+	tslog.Gray("< [Proxy ] %s [TX:%d, RX:%d]", r.addr, tx, rx)
 
 	return &RelayResult{
 		errTx: errTx,

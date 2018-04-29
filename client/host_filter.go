@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"io"
-	"log"
 	"net"
 	"os"
 	"regexp"
@@ -113,10 +112,10 @@ func (f *HostFilter) opRoutine() {
 		switch op {
 		case '+':
 			f.hosts[host] = proxyTypeProxy
-			log.Printf("+ 添加代理规则：%s\n", host)
+			tslog.Green("+ 添加代理规则：%s", host)
 		case '-':
 			delete(f.hosts, host)
-			log.Printf("- 删除代理规则：%s\n", host)
+			tslog.Red("- 删除代理规则：%s", host)
 		}
 	}
 }
