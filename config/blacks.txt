@@ -1,7 +1,0 @@
-sld,youtube.com,proxy
-sld,vimeo.com,proxy
-sld,google.com,proxy
-sld,gstatic.com,proxy
-sld,golang.org,proxy
-sld,medium.com,proxy
-

@@ -10,7 +10,7 @@ import (
 var logf = log.Printf
 var logn = log.Println
 
-type Config struct {
+type xConfig struct {
 	Listen   string
 	Server   string
 	Insecure bool
@@ -18,13 +18,16 @@ type Config struct {
 	Password string
 }
 
-var config Config
+var config xConfig
 var filter HostFilter
 
-type Server struct {
+// xServer is a tcp server which listens on a single local port
+// to accept both incoming socks and http connections
+type xServer struct {
 }
 
-func (s *Server) Run(network, addr string) error {
+// Run starts to listen on the network and address
+func (s *xServer) Run(network, addr string) {
 	l, err := net.Listen(network, addr)
 
 	if err != nil {
@@ -35,37 +38,37 @@ func (s *Server) Run(network, addr string) error {
 		conn, err := l.Accept()
 
 		if err != nil {
-			break
+			panic(err)
 		}
 
 		go s.handle(conn)
 	}
-
-	return nil
 }
 
-func (s *Server) handle(conn net.Conn) error {
+// Handle handles the accepted connections
+// which can be socks and http connections
+func (s *xServer) handle(conn net.Conn) error {
 	defer conn.Close()
 
+	// buffered I/O readers & writers
 	var bior = bufio.NewReader(conn)
 	var biow = bufio.NewWriter(conn)
-	var bio = bufio.NewReadWriter(bior, biow)
+	var biorw = bufio.NewReadWriter(bior, biow)
 
-	var first byte
-	if firsts, err := bior.Peek(1); err != nil {
-		// logf("empty connection")
+	// peek to see the protocol used
+	firsts, err := bior.Peek(1)
+	if err != nil {
 		return err
-	} else {
-		first = firsts[0]
 	}
 
-	switch first {
+	switch firsts[0] {
+	case '\x04':
 	case '\x05':
 		var sp SocksProxy
-		sp.Handle(conn, bio)
+		sp.Handle(conn, biorw)
 	default:
 		var hp HTTPProxy
-		hp.Handle(conn, bio)
+		hp.Handle(conn, biorw)
 	}
 
 	return nil
@@ -83,8 +86,8 @@ func parseConfig() {
 func main() {
 	parseConfig()
 
-	filter.Init("")
+	filter.Init("config/rules.txt")
 
-	s := Server{}
-	s.Run("tcp", config.Listen)
+	s := xServer{}
+	s.Run("tcp4", config.Listen)
 }

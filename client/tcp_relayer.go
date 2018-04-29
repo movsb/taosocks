@@ -1,14 +1,21 @@
 package main
 
 import (
+	"bufio"
+	"crypto/tls"
 	"encoding/gob"
+	"errors"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"sync"
+
 	"../internal"
 )
 
+// Relayer exposes the interfaces for
+// relaying a connection
 type Relayer interface {
 	Begin(addr string, src net.Conn) bool
 	Relay()
@@ -17,6 +24,8 @@ type Relayer interface {
 	ToLocal(b []byte) error
 }
 
+// LocalRelayer is a relayer that relays all
+// traffics through local network
 type LocalRelayer struct {
 	src  net.Conn
 	dst  net.Conn
@@ -83,6 +92,11 @@ func (r *LocalRelayer) Relay() {
 
 }
 
+const kVersion string = "taosocks/20171218"
+
+// RemoteRelayer is a relayer that relays all
+// traffics through remote servers by using
+// taosocks protocol
 type RemoteRelayer struct {
 	Server   string
 	Insecure bool
@@ -92,14 +106,54 @@ type RemoteRelayer struct {
 	addr string
 }
 
+func (r *RemoteRelayer) dialServer() (net.Conn, error) {
+	tlscfg := &tls.Config{
+		InsecureSkipVerify: r.Insecure,
+	}
+
+	conn, err := tls.Dial("tcp4", r.Server, tlscfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// the upgrade request
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.Host = r.Server
+	req.Header.Add("Connection", "upgrade")
+	req.Header.Add("Upgrade", kVersion)
+	req.Header.Add("Username", config.Username)
+	req.Header.Add("Password", config.Password)
+
+	err = req.Write(conn)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	bio := bufio.NewReader(conn)
+
+	resp, err := http.ReadResponse(bio, nil)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	resp.Body.Close()
+
+	if resp.StatusCode != 101 {
+		conn.Close()
+		return nil, errors.New("server upgrade protocol error")
+	}
+
+	return conn, nil
+}
+
 func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
 	r.src = src
 	r.addr = addr
 
-	serverDialer := ServerDialer{}
-	dst, err := serverDialer.Dial(r.Server, r.Insecure)
+	dst, err := r.dialServer()
 	if err != nil {
-		log.Println(err)
 		return false
 	}
 
