@@ -9,9 +9,19 @@ type TSLog struct {
 }
 
 func (o *TSLog) log(c string, f string, v ...interface{}) {
-	fmt.Printf("\033[%sm", c)
-	log.Printf(f, v...)
-	fmt.Print("\033[0m") // TODO 为什么不用输出换行？
+	s := ""
+
+	if c != "" {
+		s += fmt.Sprintf("\033[%sm", c)
+	}
+
+	s += fmt.Sprintf(f, v...)
+
+	if c != "" {
+		s += fmt.Sprint("\033[0m")
+	}
+
+	log.Print(s)
 }
 
 func (o *TSLog) Log(f string, v ...interface{}) {
