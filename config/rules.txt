@@ -1,4 +1,5 @@
 host,google.com,proxy
+host,github.com,proxy
 host,youtube.com,proxy
 host,wikipedia.org,proxy
 host,googlevideo.com,proxy

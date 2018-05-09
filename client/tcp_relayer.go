@@ -327,7 +327,7 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 		return errors.New("host is rejected")
 	}
 
-	beginned := false
+	began := false
 	useRemote := false
 
 	if !r.Begin(host, conn) {
@@ -335,15 +335,15 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 		case *LocalRelayer:
 			r = &RemoteRelayer{}
 			if r.Begin(host, conn) {
-				beginned = true
+				began = true
 				useRemote = true
 			}
 		}
 	} else {
-		beginned = true
+		began = true
 	}
 
-	if !beginned {
+	if !began {
 		conn.Close()
 		return errors.New("no relayer can relay such host")
 	}
