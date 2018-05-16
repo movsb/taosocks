@@ -86,7 +86,22 @@ func (r *LocalRelayer) Relay() *RelayResult {
 	}()
 
 	go func() {
-		rx, errRx = io.Copy(r.src, r.dst)
+		// This fixes no response on TLS Client Hello
+		if _, port, _ := net.SplitHostPort(r.addr); port == "443" {
+			r.dst.SetReadDeadline(time.Now().Add(time.Second * 15))
+			defer r.dst.SetReadDeadline(time.Time{})
+			buf := []byte{0}
+			_, errRx = io.ReadFull(r.dst, buf)
+			if errRx == nil {
+				_, errRx = r.src.Write(buf)
+			}
+		}
+		if errRx == nil {
+			rx, errRx = io.Copy(r.src, r.dst)
+			if errRx == nil {
+				rx++ // 1 byte from previous fix
+			}
+		}
 		wg.Done()
 		if errRx != nil {
 			r.src.Close()
