@@ -2,6 +2,7 @@ host,google.com,proxy
 host,youtube.com,proxy
 host,wikipedia.org,proxy
 host,googlevideo.com,proxy
+host,github.com,proxy
 
 cidr,192.168.0.0/16,direct
 cidr,10.0.0.0/8,direct
