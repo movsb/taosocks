@@ -15,7 +15,7 @@ import (
 var logf = log.Printf
 var logn = log.Println
 
-type xConfig struct {
+type Config struct {
 	Listen   string
 	Server   string
 	Insecure bool
@@ -23,18 +23,18 @@ type xConfig struct {
 	Password string
 }
 
-var config xConfig
+var config Config
 var filter HostFilter
 var tslog internal.TSLog
 var svrmgr *RemoteRelayerManager
 
-// xServer is a tcp server which listens on a single local port
+// Server is a tcp server which listens on a single local port
 // to accept both incoming socks and http connections
-type xServer struct {
+type Server struct {
 }
 
 // Run starts to listen on the network and address
-func (s *xServer) Run(network, addr string) {
+func (s *Server) Run(network, addr string) {
 	l, err := net.Listen(network, addr)
 
 	if err != nil {
@@ -54,7 +54,7 @@ func (s *xServer) Run(network, addr string) {
 
 // Handle handles the accepted connections
 // which can be socks and http connections
-func (s *xServer) handle(conn net.Conn) error {
+func (s *Server) handle(conn net.Conn) error {
 	defer conn.Close()
 
 	// buffered I/O readers & writers
@@ -111,6 +111,6 @@ func main() {
 
 	svrmgr = NewRemoteRelayerManager()
 
-	s := xServer{}
+	s := Server{}
 	s.Run("tcp4", config.Listen)
 }

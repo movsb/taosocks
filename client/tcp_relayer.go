@@ -88,7 +88,22 @@ func (r *LocalRelayer) Relay() *RelayResult {
 	}()
 
 	go func() {
-		rx, errRx = io.Copy(r.src, r.dst)
+		// This fixes no response on TLS Client Hello
+		if _, port, _ := net.SplitHostPort(r.addr); port == "443" {
+			r.dst.SetReadDeadline(time.Now().Add(time.Second * 15))
+			defer r.dst.SetReadDeadline(time.Time{})
+			buf := []byte{0}
+			_, errRx = io.ReadFull(r.dst, buf)
+			if errRx == nil {
+				_, errRx = r.src.Write(buf)
+			}
+		}
+		if errRx == nil {
+			rx, errRx = io.Copy(r.src, r.dst)
+			if errRx == nil {
+				rx++ // 1 byte from previous fix
+			}
+		}
 		wg.Done()
 		if errRx != nil {
 			r.src.Close()
@@ -394,7 +409,7 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 		return errors.New("host is rejected")
 	}
 
-	beginned := false
+	began := false
 	useRemote := false
 
 	if !r.Begin(host, conn) {
@@ -402,15 +417,15 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 		case *LocalRelayer:
 			r = svrmgr.New() // TODO Remove global variable
 			if r.Begin(host, conn) {
-				beginned = true
+				began = true
 				useRemote = true
 			}
 		}
 	} else {
-		beginned = true
+		began = true
 	}
 
-	if !beginned {
+	if !began {
 		conn.Close()
 		return errors.New("no relayer can relay such host")
 	}
