@@ -262,9 +262,10 @@ func (r *RemoteRelayer) src2dst() (int64, error) {
 
 	var all int64
 	var err error
+	var n int
 
 	for {
-		n, err := r.src.Read(buf)
+		n, err = r.src.Read(buf)
 		if err != nil {
 			break
 		}
