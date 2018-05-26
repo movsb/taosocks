@@ -91,12 +91,12 @@ func (r *LocalRelayer) Relay() *RelayResult {
 		// This fixes no response on TLS Client Hello
 		if _, port, _ := net.SplitHostPort(r.addr); port == "443" {
 			r.dst.SetReadDeadline(time.Now().Add(time.Second * 15))
-			defer r.dst.SetReadDeadline(time.Time{})
 			buf := []byte{0}
 			_, errRx = io.ReadFull(r.dst, buf)
 			if errRx == nil {
 				_, errRx = r.src.Write(buf)
 			}
+			r.dst.SetReadDeadline(time.Time{})
 		}
 		if errRx == nil {
 			rx, errRx = io.Copy(r.src, r.dst)
