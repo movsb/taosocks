@@ -2,8 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -39,8 +37,6 @@ func (h *HTTP) handle(conn net.Conn) bool {
 		return false
 	}
 
-	h.doProxy(conn, req)
-
 	return true
 }
 
@@ -64,30 +60,4 @@ func (h *HTTP) tryUpgrade(conn net.Conn, req *http.Request) bool {
 	}
 
 	return false
-}
-
-func (h *HTTP) doProxy(conn net.Conn, req *http.Request) {
-	if !strings.HasPrefix(strings.ToLower(config.Server), "https://") {
-		config.Server = "https://" + config.Server
-	}
-	u, err := req.URL.Parse(config.Server)
-	u.Path = req.RequestURI
-	req.URL = u
-	req.Host = u.Host
-	if req.URL.Scheme == "" {
-		req.URL.Scheme = "https"
-	}
-	resp, err := http.DefaultTransport.RoundTrip(req)
-	if err != nil {
-		log.Printf("%v\n", req)
-		log.Println(err)
-		return
-	}
-
-	defer resp.Body.Close()
-
-	conn.Write([]byte(fmt.Sprintf("%s %s\r\n", resp.Proto, resp.Status)))
-	resp.Header.Write(conn)
-	conn.Write([]byte("\r\n"))
-	io.Copy(conn, resp.Body)
 }

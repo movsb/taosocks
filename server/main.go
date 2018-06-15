@@ -13,7 +13,6 @@ import (
 
 type Config struct {
 	Listen string
-	Server string
 }
 
 var config Config
@@ -141,8 +140,7 @@ func relay2(conn net.Conn, dec *gob.Decoder) {
 }
 
 func parseConfig() {
-	flag.StringVar(&config.Listen, "listen", "", "listen address(host:port)")
-	flag.StringVar(&config.Server, "server", "", "where to proxy unknown requests")
+	flag.StringVar(&config.Listen, "listen", "127.0.0.1:1081", "listen address(host:port)")
 	flag.Parse()
 }
 
