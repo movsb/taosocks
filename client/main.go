@@ -9,13 +9,13 @@ import (
 	"os"
 	"os/signal"
 
-	"../internal"
+	"taosocks/internal"
 )
 
 var logf = log.Printf
 var logn = log.Println
 
-type Config struct {
+type xConfig struct {
 	Listen   string
 	Server   string
 	Insecure bool
@@ -23,7 +23,7 @@ type Config struct {
 	Password string
 }
 
-var config Config
+var config xConfig
 var filter HostFilter
 var tslog internal.TSLog
 var svrmgr *RemoteRelayerManager

@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"../internal"
+	"taosocks/internal"
 )
 
 // Relayer exposes the interfaces for
@@ -36,13 +36,14 @@ type RelayResult struct {
 }
 
 // LocalRelayer is a relayer that relays all
-// traffics through local network
+// traffics through local network.
 type LocalRelayer struct {
 	src  net.Conn
 	dst  net.Conn
 	addr string
 }
 
+// Begin implements Relayer.Begin.
 func (r *LocalRelayer) Begin(addr string, src net.Conn) bool {
 	r.src = src
 	r.addr = addr
@@ -57,16 +58,19 @@ func (r *LocalRelayer) Begin(addr string, src net.Conn) bool {
 	return true
 }
 
+// ToLocal implements Relayer.ToLocal.
 func (r *LocalRelayer) ToLocal(b []byte) error {
 	r.src.Write(b)
 	return nil
 }
 
+// ToRemote implements Relayer.ToRemote.
 func (r *LocalRelayer) ToRemote(b []byte) error {
 	r.dst.Write(b)
 	return nil
 }
 
+// Relay implements Relayer.Relay.
 func (r *LocalRelayer) Relay() *RelayResult {
 	tslog.Log("> [Direct] %s", r.addr)
 
@@ -126,7 +130,7 @@ func (r *LocalRelayer) Relay() *RelayResult {
 	}
 }
 
-const kVersion string = "taosocks/20171218"
+const gVersion string = "taosocks/20171218"
 
 // RemoteRelayer is a relayer that relays all
 // traffics through remote servers by using
@@ -151,7 +155,7 @@ func (r *RemoteRelayer) dialServer() (net.Conn, error) {
 	req, _ := http.NewRequest("GET", "/", nil)
 	req.Host = config.Server
 	req.Header.Add("Connection", "upgrade")
-	req.Header.Add("Upgrade", kVersion)
+	req.Header.Add("Upgrade", gVersion)
 	req.Header.Add("Username", config.Username)
 	req.Header.Add("Password", config.Password)
 
@@ -185,6 +189,7 @@ func (r *RemoteRelayer) IsOK() bool {
 	return false
 }
 
+// Begin implements Relayer.Begin.
 func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
 	r.src = src
 	r.addr = addr
@@ -218,12 +223,14 @@ func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
 	return true
 }
 
+// ToLocal implements Relayer.ToLocal.
 func (r *RemoteRelayer) ToLocal(b []byte) error {
 	r.src.Write(b)
 
 	return nil
 }
 
+// ToRemote implements Relayer.ToRemote.
 func (r *RemoteRelayer) ToRemote(b []byte) error {
 	var pkt internal.RelayPacket
 	pkt.Data = b
@@ -234,6 +241,7 @@ func (r *RemoteRelayer) ToRemote(b []byte) error {
 	return nil
 }
 
+// Relay implements Relayer.Relay.
 func (r *RemoteRelayer) Relay() *RelayResult {
 	tslog.Log("> [Proxy ] %s", r.addr)
 

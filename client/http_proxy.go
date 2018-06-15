@@ -8,11 +8,13 @@ import (
 	"strings"
 )
 
+// HTTPProxy processes HTTP protocols.
 type HTTPProxy struct {
 	conn net.Conn
 	bio  *bufio.ReadWriter
 }
 
+// Handle handles incoming HTTP connections.
 func (h *HTTPProxy) Handle(conn net.Conn, bio *bufio.ReadWriter) {
 	h.bio = bio
 	h.conn = conn

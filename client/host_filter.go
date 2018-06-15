@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// ProxyType is
 type ProxyType byte
 
 const (
@@ -20,8 +21,10 @@ const (
 	proxyTypeAuto
 )
 
+// AddrType is
 type AddrType uint
 
+// Address Types
 const (
 	_ AddrType = iota
 	IPv4
@@ -35,12 +38,14 @@ func isComment(line string) bool {
 	return reIsComment.MatchString(line)
 }
 
+// HostFilter returns the proxy type on specified host.
 type HostFilter struct {
 	ch    chan string
 	hosts map[string]ProxyType
 	cidrs map[*net.IPNet]ProxyType
 }
 
+// SaveAuto saves auto-generated rules.
 func (f *HostFilter) SaveAuto(path string) {
 	file, err := os.Create(path)
 	if err != nil {
@@ -61,6 +66,7 @@ func (f *HostFilter) SaveAuto(path string) {
 	file.Close()
 }
 
+// LoadAuto loads auto-generated rules.
 func (f *HostFilter) LoadAuto(path string) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -82,6 +88,7 @@ func (f *HostFilter) LoadAuto(path string) {
 	tslog.Green("加载了 %d 条自动规则", n)
 }
 
+// Init loads user-difined rules.
 func (f *HostFilter) Init(path string) {
 	f.ch = make(chan string)
 	f.hosts = make(map[string]ProxyType)
@@ -133,10 +140,12 @@ func (f *HostFilter) scanFile(reader io.Reader, isTmp bool) {
 	}
 }
 
+// Add adds a rule. (thread-safe)
 func (f *HostFilter) Add(host string) {
 	f.ch <- "+" + host
 }
 
+// Del deletes a rule. (thread-safe)
 func (f *HostFilter) Del(host string) {
 	f.ch <- "-" + host
 }
@@ -162,6 +171,7 @@ func (f *HostFilter) opRoutine() {
 	}
 }
 
+// Test returns proxy type for host host.
 func (f *HostFilter) Test(host string) ProxyType {
 	if colon := strings.IndexByte(host, ':'); colon != -1 {
 		host = host[:colon]

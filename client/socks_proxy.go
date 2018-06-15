@@ -38,11 +38,13 @@ func writen(bio *bufio.Writer, b []byte) error {
 	return bio.Flush()
 }
 
+// SocksProxy processes SOCKS protocols.
 type SocksProxy struct {
 	conn net.Conn
 	bio  *bufio.ReadWriter
 }
 
+// Handle handles incoming SOCKS protocol connections.
 func (s *SocksProxy) Handle(conn net.Conn, bio *bufio.ReadWriter) {
 	s.conn = conn
 	s.bio = bio
@@ -149,13 +151,14 @@ func (s *SocksProxy) handleV5() {
 	}
 
 	var port uint16
+	var portArray []byte
 
-	if portArray, err := readn(bio.Reader, 2); err != nil {
+	if portArray, err = readn(bio.Reader, 2); err != nil {
 		logf("read port error: %s\n", err)
 		return
-	} else {
-		port = uint16(portArray[0])<<8 + uint16(portArray[1])
 	}
+
+	port = uint16(portArray[0])<<8 + uint16(portArray[1])
 
 	hostport := fmt.Sprintf("%s:%d", strAddr, port)
 

@@ -8,7 +8,7 @@ import (
 	"net"
 	"sync"
 
-	"../internal"
+	"taosocks/internal"
 )
 
 type Config struct {
