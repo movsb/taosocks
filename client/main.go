@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/signal"
 
-	"taosocks/internal"
+	"github.com/movsb/taosocks/internal"
 )
 
 var logf = log.Printf

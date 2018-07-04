@@ -8,7 +8,7 @@ import (
 	"net"
 	"sync"
 
-	"taosocks/internal"
+	"github.com/movsb/taosocks/internal"
 )
 
 type Config struct {
