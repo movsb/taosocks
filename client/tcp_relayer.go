@@ -7,7 +7,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -370,14 +369,14 @@ func (o *RemoteRelayerManager) New() *RemoteRelayer {
 		if e.Value.(*RemoteRelayer).IsOK() {
 			r = e.Value.(*RemoteRelayer)
 			o.lst.Remove(e)
-			log.Println("复用服务器")
+			tslog.Log("  复用服务器")
 			break
 		}
 	}
 
 	if r == nil {
 		r = &RemoteRelayer{}
-		log.Println("新建服务器")
+		tslog.Log("  新建服务器")
 	}
 
 	return r
@@ -386,7 +385,7 @@ func (o *RemoteRelayerManager) New() *RemoteRelayer {
 // Delete recycles the specified server.
 func (o *RemoteRelayerManager) Delete(r *RemoteRelayer) {
 	if r == nil || !r.IsOK() {
-		log.Println("不满足回收条件")
+		tslog.Log("  不满足回收条件")
 		return
 	}
 
@@ -394,7 +393,7 @@ func (o *RemoteRelayerManager) Delete(r *RemoteRelayer) {
 	defer o.lck.Unlock()
 
 	o.lst.PushBack(r)
-	log.Println("回收服务器")
+	tslog.Log("  回收服务器")
 }
 
 // SmartRelayer is

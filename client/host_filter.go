@@ -85,7 +85,7 @@ func (f *HostFilter) LoadAuto(path string) {
 		n++
 	}
 
-	tslog.Green("加载了 %d 条自动规则", n)
+	tslog.Green("  加载了 %d 条自动规则", n)
 }
 
 // Init loads user-difined rules.
@@ -163,10 +163,10 @@ func (f *HostFilter) opRoutine() {
 		switch op {
 		case '+':
 			f.hosts[host] = proxyTypeAuto
-			tslog.Green("+ 添加代理规则：%s", host)
+			tslog.Green("+ 自动添加代理规则：%s", host)
 		case '-':
 			delete(f.hosts, host)
-			tslog.Red("- 删除代理规则：%s", host)
+			tslog.Red("- 自动删除代理规则：%s", host)
 		}
 	}
 }
