@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-var logf = log.Printf
-var logn = log.Println
+var tslog.Red = log.Printf
+var tslog.Red = log.Println
 
 var serverVersion = "taosocks/20171218"
 
@@ -52,10 +52,10 @@ func (h *HTTP) tryUpgrade(conn net.Conn, req *http.Request) bool {
 				conn.Write([]byte("\r\n"))
 				return true
 			} else {
-				logf("bad user: %s:%s\n", user, pass)
+				tslog.Red("bad user: %s:%s\n", user, pass)
 			}
 		} else {
-			logf("bad version: %s\n", ver)
+			tslog.Red("bad version: %s\n", ver)
 		}
 	}
 

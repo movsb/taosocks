@@ -1,12 +1,22 @@
-host,google.com,proxy
-host,github.com,proxy
-host,youtube.com,proxy
-host,wikipedia.org,proxy
-host,googlevideo.com,proxy
-host,github.com,proxy
+# 主机过滤规则文件
 
-cidr,192.168.0.0/16,direct
-cidr,10.0.0.0/8,direct
-cidr,172.0.0.0/8,direct
-cidr,127.0.0.0/8,direct
+# 注：以 `#` 开头的号为注释行
+
+# 由于本软件是智能代理软件，所以你只需要添加极少量的规则。
+# 对于任意不在此规则文件中的域名/IP，会先进行本地连接，如不行，再远程转发。
+
+# 格式： 主机,规则
+
+# 域名采用精确判断，然后依次后缀判断，CIDR采用前缀判断
+
+github.com,proxy
+youtube.com,proxy
+wikipedia.org,proxy
+googlevideo.com,proxy
+
+10.0.0.0/8,direct
+127.0.0.0/8,direct
+172.0.0.0/8,direct
+192.168.0.0/16,direct
+
 

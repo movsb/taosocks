@@ -21,7 +21,7 @@ func (h *HTTPProxy) Handle(conn net.Conn, bio *bufio.ReadWriter) {
 
 	req, err := http.ReadRequest(bio.Reader)
 	if err != nil {
-		logf("read request error: %s\n", err)
+		tslog.Red("read request error: %s\n", err)
 		return
 	}
 

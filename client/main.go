@@ -4,16 +4,12 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
 
 	"github.com/movsb/taosocks/internal"
 )
-
-var logf = log.Printf
-var logn = log.Println
 
 type xConfig struct {
 	Listen   string

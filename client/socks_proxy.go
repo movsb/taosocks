@@ -57,19 +57,19 @@ func (s *SocksProxy) handleV5() {
 	var err error
 
 	if ver, err := bio.ReadByte(); err != nil || ver != v5 {
-		logf("socks version error: %d\n", ver)
+		tslog.Red("socks version error: %d\n", ver)
 		return
 	}
 
 	var authCount byte
 	if authCount, err = bio.ReadByte(); err != nil || authCount == 0 {
-		logf("socks auth count error: %s\n", err)
+		tslog.Red("socks auth count error: %s\n", err)
 		return
 	}
 
 	var authMethods []byte
 	if authMethods, err = readn(bio.Reader, uint(authCount)); err != nil {
-		logf("auth methods error: %s\n", err)
+		tslog.Red("auth methods error: %s\n", err)
 		return
 	}
 
@@ -82,40 +82,40 @@ func (s *SocksProxy) handleV5() {
 	}
 
 	if !haveNoAuth {
-		logn("No acceptable auth method provided.")
+		tslog.Red("No acceptable auth method provided.")
 		return
 	}
 
 	authReply := []byte{5, 0}
 	if err := writen(bio.Writer, authReply); err != nil {
-		logf("write auth reply error: %s\n", err)
+		tslog.Red("write auth reply error: %s\n", err)
 		return
 	}
 
 	if ver, err := bio.ReadByte(); err != nil || ver != v5 {
-		logn("socks version error: %s\n", err)
+		tslog.Red("socks version error: %s\n", err)
 		return
 	}
 
 	var command byte
 	if command, err = bio.ReadByte(); err != nil {
-		logf("read command error: %s\n", err)
+		tslog.Red("read command error: %s\n", err)
 		return
 	}
 
 	if command != tcpStream {
-		logf("command not supported: %d\n", command)
+		tslog.Red("command not supported: %d\n", command)
 		return
 	}
 
 	if rsv, err := bio.ReadByte(); err != nil || rsv != 0 {
-		logf("reserved byte error: %s\n", err)
+		tslog.Red("reserved byte error: %s\n", err)
 		return
 	}
 
 	var addrType byte
 	if addrType, err = bio.ReadByte(); err != nil {
-		logf("read address type error: %s\n", err)
+		tslog.Red("read address type error: %s\n", err)
 		return
 	}
 
@@ -125,7 +125,7 @@ func (s *SocksProxy) handleV5() {
 	case addrTypeIPv4:
 		var ipv4 []byte
 		if ipv4, err = readn(bio.Reader, 4); err != nil {
-			logf("read ipv4 error: %s\n", err)
+			tslog.Red("read ipv4 error: %s\n", err)
 			return
 		}
 
@@ -134,19 +134,19 @@ func (s *SocksProxy) handleV5() {
 	case addrTypeDomain:
 		var nameLen byte
 		if nameLen, err = bio.ReadByte(); err != nil {
-			logf("read domain len error: %s\n", err)
+			tslog.Red("read domain len error: %s\n", err)
 			return
 		}
 
 		var nameBytes []byte
 		if nameBytes, err = readn(bio.Reader, uint(nameLen)); err != nil {
-			logf("read domain error: %s\n", err)
+			tslog.Red("read domain error: %s\n", err)
 			return
 		}
 
 		strAddr = string(nameBytes)
 	default:
-		logf("unknown address type: %d\n", addrType)
+		tslog.Red("unknown address type: %d\n", addrType)
 		return
 	}
 
@@ -154,7 +154,7 @@ func (s *SocksProxy) handleV5() {
 	var portArray []byte
 
 	if portArray, err = readn(bio.Reader, 2); err != nil {
-		logf("read port error: %s\n", err)
+		tslog.Red("read port error: %s\n", err)
 		return
 	}
 

@@ -422,10 +422,12 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	if !r.Begin(host, conn) {
 		switch r.(type) {
 		case *LocalRelayer:
-			r = svrmgr.New() // TODO Remove global variable
-			if r.Begin(host, conn) {
-				began = true
-				useRemote = true
+			if proxyType != proxyTypeDirect {
+				r = svrmgr.New() // TODO Remove global variable
+				if r.Begin(host, conn) {
+					began = true
+					useRemote = true
+				}
 			}
 		}
 	} else {
@@ -463,7 +465,7 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 			isReset = strings.Contains(opErr.Err.Error(), syscall.ECONNRESET.Error())
 		}
 
-		if isHTTPPort || isReset {
+		if (isHTTPPort || isReset) && (proxyType == proxyTypeDefault || proxyType == proxyTypeAuto) {
 			switch r.(type) {
 			case *LocalRelayer:
 				filter.Add(hostname)

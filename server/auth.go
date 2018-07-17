@@ -15,7 +15,7 @@ func (a *Auth) Init(path string) {
 
     fp, err := os.Open(path)
     if err != nil {
-        logf("user file not found: %s\n", path)
+        tslog.Red("user file not found: %s\n", path)
         return
     }
 
@@ -26,7 +26,7 @@ func (a *Auth) Init(path string) {
         toks := strings.Split(line, ":")
 
         if len(toks) != 2 {
-            logf("bad user: %s\n", line)
+            tslog.Red("bad user: %s\n", line)
             continue
         }
 

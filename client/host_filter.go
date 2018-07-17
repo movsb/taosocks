@@ -32,7 +32,6 @@ const (
 )
 
 var reIsComment = regexp.MustCompile(`^[ \t]*#`)
-var reSplitHost = regexp.MustCompile(`\.([^.]+\.[^.]+)$`)
 
 func isComment(line string) bool {
 	return reIsComment.MatchString(line)
@@ -97,7 +96,7 @@ func (f *HostFilter) Init(path string) {
 	go f.opRoutine()
 
 	if file, err := os.Open(path); err != nil {
-		logf("rule file not found: %s\n", path)
+		tslog.Red("rule file not found: %s\n", path)
 	} else {
 		f.scanFile(file, false)
 		file.Close()
@@ -108,14 +107,14 @@ func (f *HostFilter) scanFile(reader io.Reader, isTmp bool) {
 	scanner := bufio.NewScanner(reader)
 
 	for scanner.Scan() {
-		rule := scanner.Text()
-		if isComment(rule) {
+		rule := strings.Trim(scanner.Text(), " \t")
+		if isComment(rule) || rule == "" {
 			continue
 		}
 		toks := strings.Split(rule, ",")
-		if len(toks) == 3 {
+		if len(toks) == 2 {
 			var ty ProxyType
-			switch toks[2] {
+			switch toks[1] {
 			case "direct":
 				ty = proxyTypeDirect
 			case "proxy":
@@ -123,19 +122,22 @@ func (f *HostFilter) scanFile(reader io.Reader, isTmp bool) {
 			case "reject":
 				ty = proxyTypeReject
 			default:
+				tslog.Red("invalid proxy type: %s\n", toks[1])
 				continue
 			}
 
-			if toks[0] == "host" {
-				f.hosts[toks[1]] = ty
-			} else if toks[0] == "cidr" {
-				_, ipnet, err := net.ParseCIDR(toks[1])
+			if strings.IndexByte(toks[0], '/') == -1 {
+				f.hosts[toks[0]] = ty
+			} else {
+				_, ipnet, err := net.ParseCIDR(toks[0])
 				if err == nil {
 					f.cidrs[ipnet] = ty
 				} else {
-					logf("bad cidr: %s\n", toks[1])
+					tslog.Red("bad cidr: %s\n", toks[0])
 				}
 			}
+		} else {
+			tslog.Red("invalid rule: %s\n", rule)
 		}
 	}
 }
@@ -173,13 +175,14 @@ func (f *HostFilter) opRoutine() {
 
 // Test returns proxy type for host host.
 func (f *HostFilter) Test(host string) ProxyType {
+	// Remove port if there is one.
 	if colon := strings.IndexByte(host, ':'); colon != -1 {
 		host = host[:colon]
 	}
 
 	host = strings.ToLower(host)
 
-	// if is TopLevel
+	// if host is TopLevel, like localhost.
 	if !strings.Contains(host, ".") {
 		return proxyTypeDirect
 	}
@@ -197,15 +200,21 @@ func (f *HostFilter) Test(host string) ProxyType {
 			}
 		}
 	} else if aty == Domain {
-		if ty, ok := f.hosts[host]; ok {
-			return ty
-		}
-
-		matches := reSplitHost.FindStringSubmatch(host)
-		if len(matches) == 2 {
-			if ty, ok := f.hosts[matches[1]]; ok {
+		// test suffixes (sub strings)
+		// eg. host is play.golang.org, then these suffixes will be tested:
+		//		play.golang.org
+		//		golang.org
+		//		org
+		for {
+			// tslog.Red("test %s\n", host)
+			if ty, ok := f.hosts[host]; ok {
 				return ty
 			}
+			index := strings.IndexByte(host, '.')
+			if index == -1 {
+				break
+			}
+			host = host[index+1:]
 		}
 	}
 
