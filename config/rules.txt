@@ -9,6 +9,7 @@
 
 # 域名采用精确判断，然后依次后缀判断，CIDR采用前缀判断
 
+local,direct
 github.com,proxy
 youtube.com,proxy
 wikipedia.org,proxy
