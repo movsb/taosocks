@@ -15,8 +15,7 @@ type xConfig struct {
 	Listen   string
 	Server   string
 	Insecure bool
-	Username string
-	Password string
+	Key      string
 }
 
 var config xConfig
@@ -78,11 +77,10 @@ func (s *Server) handle(conn net.Conn) error {
 }
 
 func parseConfig() {
-	flag.StringVar(&config.Listen, "listen", "127.0.0.1:1080", "listen address(host:port)")
+	flag.StringVar(&config.Listen, "listen", "0.0.0.0:1080", "listen address(host:port)")
 	flag.StringVar(&config.Server, "server", "127.0.0.1:1081", "server address(host:port)")
-	flag.BoolVar(&config.Insecure, "insecure", false, "don't verify server certificate")
-	flag.StringVar(&config.Username, "username", "", "login username")
-	flag.StringVar(&config.Password, "password", "", "login password")
+	flag.BoolVar(&config.Insecure, "insecure", true, "don't verify server certificate")
+	flag.StringVar(&config.Key, "key", "", "login key")
 	flag.Parse()
 }
 

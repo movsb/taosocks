@@ -129,7 +129,7 @@ func (r *LocalRelayer) Relay() *RelayResult {
 	}
 }
 
-const gVersion string = "taosocks/20171218"
+const gVersion string = "taosocks/20180728"
 
 // RemoteRelayer is a relayer that relays all
 // traffics through remote servers by using
@@ -155,8 +155,7 @@ func (r *RemoteRelayer) dialServer() (net.Conn, error) {
 	req.Host = config.Server
 	req.Header.Add("Connection", "upgrade")
 	req.Header.Add("Upgrade", gVersion)
-	req.Header.Add("Username", config.Username)
-	req.Header.Add("Password", config.Password)
+	req.Header.Add("Authorization", "taosocks "+config.Key)
 
 	err = req.Write(conn)
 	if err != nil {

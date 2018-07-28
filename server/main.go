@@ -1,154 +1,134 @@
 package main
 
 import (
-	"crypto/tls"
+	"bufio"
 	"encoding/gob"
 	"flag"
-	"log"
+	"io"
 	"net"
+	"net/http"
 	"sync"
 
 	"github.com/movsb/taosocks/internal"
 )
 
-type Config struct {
-	Listen string
-}
+var gVersion = "taosocks/20180728"
+var gListen string
+var gKey string
+var tslog = &internal.TSLog{}
 
-var config Config
-var hh HTTP
-var auth Auth
+func doRelay(conn net.Conn, bio *bufio.ReadWriter) error {
+	var err error
 
-type Server struct {
-}
-
-func (s *Server) Run(network, addr string) error {
-	cer, err := tls.LoadX509KeyPair("config/server.crt", "config/server.key")
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-
-	config := &tls.Config{Certificates: []tls.Certificate{cer}}
-
-	l, err := tls.Listen(network, addr, config)
-
-	if err != nil {
-		panic(err)
-	}
-
-	for {
-		conn, err := l.Accept()
-
-		if err != nil {
-			panic(err)
-		}
-
-		go s.handleAccept(conn)
-	}
-}
-
-func (s *Server) handleAccept(conn net.Conn) {
-	if !hh.Handle(conn) {
-		s.handle(conn)
-	}
-}
-
-func (s *Server) handle(conn net.Conn) error {
 	defer conn.Close()
 
-	var enc = gob.NewEncoder(conn)
-	var dec = gob.NewDecoder(conn)
+	enc := gob.NewEncoder(bio)
+	dec := gob.NewDecoder(bio)
 
-	var opkt internal.OpenPacket
-	err := dec.Decode(&opkt)
-	if err != nil {
+	var openPkt internal.OpenPacket
+	if err = dec.Decode(&openPkt); err != nil {
 		return err
 	}
 
-	log.Printf("> %s\n", opkt.Addr)
+	tslog.Log("> %s", openPkt.Addr)
 
-	conn2, err := net.Dial("tcp", opkt.Addr)
+	outConn, err := net.Dial("tcp", openPkt.Addr)
 	if err != nil {
-		if conn2 != nil {
-			conn2.Close()
-		}
-		enc.Encode(internal.OpenAckPacket{Status: false})
+		enc.Encode(internal.OpenAckPacket{
+			Status: false,
+		})
+		bio.Flush()
 		return err
 	}
 
-	defer conn2.Close()
+	defer outConn.Close()
 
-	enc.Encode(internal.OpenAckPacket{Status: true})
+	enc.Encode(internal.OpenAckPacket{
+		Status: true,
+	})
+
+	bio.Flush()
 
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 
 	go func() {
-		relay1(enc, conn2)
-		wg.Done()
-		conn.Close()
-		conn2.Close()
+		defer wg.Done()
+
+		buf := make([]byte, 4096)
+		for {
+			n, err := outConn.Read(buf)
+			if err != nil {
+				if err != io.EOF {
+					tslog.Red("%s", err.Error())
+				}
+				return
+			}
+
+			var pkt internal.RelayPacket
+			pkt.Data = buf[:n]
+
+			if err := enc.Encode(&pkt); err != nil {
+				tslog.Red("%s", err.Error())
+				return
+			}
+
+			bio.Flush()
+		}
 	}()
 
 	go func() {
-		relay2(conn2, dec)
-		wg.Done()
-		conn.Close()
-		conn2.Close()
+		defer wg.Done()
+
+		for {
+			var pkt internal.RelayPacket
+			if err := dec.Decode(&pkt); err != nil {
+				if err != io.EOF {
+					tslog.Red("%s", err.Error())
+				}
+				return
+			}
+
+			_, err := outConn.Write(pkt.Data)
+			if err != nil {
+				tslog.Red("%s", err.Error())
+				return
+			}
+		}
 	}()
 
 	wg.Wait()
 
-	log.Printf("< %s\n", opkt.Addr)
+	tslog.Gray("< %s", openPkt.Addr)
 
 	return nil
 }
 
-func relay1(enc *gob.Encoder, conn net.Conn) {
-	buf := make([]byte, 1024)
+func handleRequest(w http.ResponseWriter, req *http.Request) {
+	ver := req.Header.Get("Upgrade")
+	auth := req.Header.Get("Authorization")
 
-	for {
-		var pkt internal.RelayPacket
-		n, err := conn.Read(buf)
-		if err != nil {
-			return
-		}
-
-		pkt.Data = buf[:n]
-
-		err = enc.Encode(pkt)
-		if err != nil {
-			return
-		}
+	if ver == gVersion && auth == "taosocks "+gKey {
+		w.WriteHeader(http.StatusSwitchingProtocols)
+		conn, bio, _ := w.(http.Hijacker).Hijack()
+		doRelay(conn, bio)
+	} else {
+		// handle HTTP request here.
+		w.WriteHeader(http.StatusOK)
 	}
-}
-
-func relay2(conn net.Conn, dec *gob.Decoder) {
-	for {
-		var pkt internal.RelayPacket
-		err := dec.Decode(&pkt)
-		if err != nil {
-			return
-		}
-
-		_, err = conn.Write(pkt.Data)
-		if err != nil {
-			return
-		}
-	}
-}
-
-func parseConfig() {
-	flag.StringVar(&config.Listen, "listen", "127.0.0.1:1081", "listen address(host:port)")
-	flag.Parse()
 }
 
 func main() {
-	parseConfig()
+	flag.StringVar(&gListen, "listen", "0.0.0.0:1081", "listen address(host:port)")
+	flag.StringVar(&gKey, "key", "", "the key")
+	flag.Parse()
 
-	auth.Init("config/users.txt")
+	http.HandleFunc("/", handleRequest)
 
-	s := Server{}
-	s.Run("tcp4", config.Listen)
+	if err := http.ListenAndServeTLS(gListen,
+		"config/server.crt", "config/server.key",
+		nil,
+	); err != nil {
+		panic(err)
+	}
 }
