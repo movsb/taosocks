@@ -193,6 +193,9 @@ func (f *HostFilter) Test(host string) ProxyType {
 	}
 
 	if aty == IPv4 {
+		if ty, ok := f.hosts[host]; ok {
+			return ty
+		}
 		ip := net.ParseIP(host)
 		for ipnet, ty := range f.cidrs {
 			if ipnet.Contains(ip) {
