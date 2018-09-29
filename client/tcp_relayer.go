@@ -432,6 +432,9 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 
 	if !began {
 		conn.Close()
+		if proxyType == proxyTypeAuto {
+			filter.Del(hostname)
+		}
 		return errors.New("no relayer can relay such host")
 	}
 
