@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"container/list"
 	"crypto/tls"
 	"encoding/gob"
 	"errors"
@@ -178,12 +177,6 @@ func (r *RemoteRelayer) dialServer() (net.Conn, error) {
 	return conn, nil
 }
 
-// IsOK returns the connection state of this server.
-// If it is ok, it can be (re)used.
-func (r *RemoteRelayer) IsOK() bool {
-	return false
-}
-
 // Begin implements Relayer.Begin.
 func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
 	r.src = src
@@ -336,62 +329,6 @@ func (r *RemoteRelayer) dst2src() (int64, error) {
 	return all, err
 }
 
-// RemoteRelayerManager is a manager that maintains
-// a list of connected stand-by servers, which are connected stand-by servers.
-type RemoteRelayerManager struct {
-	lck *sync.Mutex
-	lst *list.List
-}
-
-// NewRemoteRelayerManager creates a new RemoteRelayerManager,
-// which managers the server pool.
-func NewRemoteRelayerManager() *RemoteRelayerManager {
-	r := &RemoteRelayerManager{
-		lck: &sync.Mutex{},
-		lst: list.New(),
-	}
-	return r
-}
-
-// New allocates a new server, which can be either
-// a newly created server or a stand-by server.
-func (o *RemoteRelayerManager) New() *RemoteRelayer {
-	o.lck.Lock()
-	defer o.lck.Unlock()
-
-	var r *RemoteRelayer
-
-	for e := o.lst.Front(); e != nil; e = e.Next() {
-		if e.Value.(*RemoteRelayer).IsOK() {
-			r = e.Value.(*RemoteRelayer)
-			o.lst.Remove(e)
-			tslog.Log("  复用服务器")
-			break
-		}
-	}
-
-	if r == nil {
-		r = &RemoteRelayer{}
-		tslog.Log("  新建服务器")
-	}
-
-	return r
-}
-
-// Delete recycles the specified server.
-func (o *RemoteRelayerManager) Delete(r *RemoteRelayer) {
-	if r == nil || !r.IsOK() {
-		tslog.Log("  不满足回收条件")
-		return
-	}
-
-	o.lck.Lock()
-	defer o.lck.Unlock()
-
-	o.lst.PushBack(r)
-	tslog.Log("  回收服务器")
-}
-
 // SmartRelayer is
 type SmartRelayer struct {
 }
@@ -407,7 +344,7 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	case proxyTypeDefault, proxyTypeDirect:
 		r = &LocalRelayer{}
 	case proxyTypeProxy, proxyTypeAuto:
-		r = svrmgr.New() // TODO Remove global variable
+		r = &RemoteRelayer{}
 	case proxyTypeReject:
 		return errors.New("host is rejected")
 	}
@@ -419,7 +356,7 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 		switch r.(type) {
 		case *LocalRelayer:
 			if proxyType != proxyTypeDirect {
-				r = svrmgr.New() // TODO Remove global variable
+				r = &RemoteRelayer{}
 				if r.Begin(host, conn) {
 					began = true
 					useRemote = true
@@ -450,10 +387,6 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	}
 
 	rr := r.Relay()
-
-	if rr, ok := r.(*RemoteRelayer); ok {
-		svrmgr.Delete(rr) // TODO Remove global variable
-	}
 
 	if rr.nTx != 0 && rr.nRx == 0 {
 		isHTTPPort := portstr == "80" || portstr == "443"

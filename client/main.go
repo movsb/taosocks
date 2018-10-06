@@ -21,7 +21,6 @@ type xConfig struct {
 var config xConfig
 var filter HostFilter
 var tslog internal.TSLog
-var svrmgr *RemoteRelayerManager
 
 // Server is a tcp server which listens on a single local port
 // to accept both incoming socks and http connections
@@ -102,8 +101,6 @@ func main() {
 
 	filter.Init("config/rules.txt")
 	filter.LoadAuto("config/rules-auto.txt")
-
-	svrmgr = NewRemoteRelayerManager()
 
 	s := Server{}
 	s.Run("tcp4", config.Listen)
