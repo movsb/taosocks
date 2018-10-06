@@ -88,23 +88,7 @@ func (r *LocalRelayer) Relay() *RelayResult {
 	}()
 
 	go func() {
-		// This fixes no response on TLS Client Hello
-		var port string
-		if _, port, _ = net.SplitHostPort(r.addr); port == "443" {
-			r.dst.SetReadDeadline(time.Now().Add(time.Second * 15))
-			buf := []byte{0}
-			_, errRx = io.ReadFull(r.dst, buf)
-			if errRx == nil {
-				_, errRx = r.src.Write(buf)
-			}
-			r.dst.SetReadDeadline(time.Time{})
-		}
-		if errRx == nil {
-			rx, errRx = io.Copy(r.src, r.dst)
-			if errRx == nil && port == "443" {
-				rx++ // 1 byte from previous fix
-			}
-		}
+		rx, errRx = io.Copy(r.src, r.dst)
 		wg.Done()
 		r.src.Close()
 		r.dst.Close()
@@ -336,7 +320,7 @@ type SmartRelayer struct {
 // Relay relays
 func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Relayer) error) error {
 	hostname, portstr, _ := net.SplitHostPort(host)
-	proxyType := filter.Test(hostname)
+	proxyType := filter.Test(hostname, portstr)
 
 	var r Relayer
 
@@ -370,13 +354,13 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	if !began {
 		conn.Close()
 		if proxyType == proxyTypeAuto {
-			filter.Del(hostname)
+			filter.DeleteHost(hostname)
 		}
 		return errors.New("no relayer can relay such host")
 	}
 
 	if useRemote {
-		filter.Add(hostname)
+		filter.AddHost(hostname, proxyTypeAuto)
 	}
 
 	if beforeRelay != nil {
@@ -400,9 +384,9 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 		if (isHTTPPort || isReset) && (proxyType == proxyTypeDefault || proxyType == proxyTypeAuto) {
 			switch r.(type) {
 			case *LocalRelayer:
-				filter.Add(hostname)
+				filter.AddHost(hostname, proxyTypeAuto)
 			case *RemoteRelayer:
-				filter.Del(hostname)
+				filter.DeleteHost(hostname)
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"io"
 	"net"
 	"os"
@@ -37,9 +38,16 @@ func isComment(line string) bool {
 	return reIsComment.MatchString(line)
 }
 
+// AutoRule is an auto-generated rule.
+type AutoRule struct {
+	add   bool
+	host  string
+	ptype ProxyType
+}
+
 // HostFilter returns the proxy type on specified host.
 type HostFilter struct {
-	ch    chan string
+	ch    chan AutoRule
 	hosts map[string]ProxyType
 	cidrs map[*net.IPNet]ProxyType
 }
@@ -89,7 +97,7 @@ func (f *HostFilter) LoadAuto(path string) {
 
 // Init loads user-difined rules.
 func (f *HostFilter) Init(path string) {
-	f.ch = make(chan string)
+	f.ch = make(chan AutoRule)
 	f.hosts = make(map[string]ProxyType)
 	f.cidrs = make(map[*net.IPNet]ProxyType)
 
@@ -142,44 +150,43 @@ func (f *HostFilter) scanFile(reader io.Reader, isTmp bool) {
 	}
 }
 
-// Add adds a rule. (thread-safe)
-func (f *HostFilter) Add(host string) {
-	f.ch <- "+" + host
+// AddHost adds a rule. (thread-safe)
+func (f *HostFilter) AddHost(host string, ptype ProxyType) {
+	f.ch <- AutoRule{
+		add:   true,
+		host:  host,
+		ptype: ptype,
+	}
 }
 
-// Del deletes a rule. (thread-safe)
-func (f *HostFilter) Del(host string) {
-	f.ch <- "-" + host
+// DeleteHost deletes a rule. (thread-safe)
+func (f *HostFilter) DeleteHost(host string) {
+	f.ch <- AutoRule{
+		add:  false,
+		host: host,
+	}
 }
 
 func (f *HostFilter) opRoutine() {
-	for s := ""; ; {
-		s = <-f.ch
-		if s == "" {
-			break
-		}
-
-		op := s[0]
-		host := s[1:]
-
-		switch op {
-		case '+':
-			f.hosts[host] = proxyTypeAuto
-			tslog.Green("+ 自动添加代理规则：%s", host)
-		case '-':
-			delete(f.hosts, host)
-			tslog.Red("- 自动删除代理规则：%s", host)
+	for {
+		s := <-f.ch
+		switch s.add {
+		case true:
+			if _, ok := f.hosts[s.host]; !ok {
+				f.hosts[s.host] = s.ptype
+				if s.ptype == proxyTypeAuto {
+					tslog.Green("+ 添加规则：%s", s.host)
+				}
+			}
+		case false:
+			delete(f.hosts, s.host)
+			tslog.Red("- 删除规则：%s", s.host)
 		}
 	}
 }
 
 // Test returns proxy type for host host.
-func (f *HostFilter) Test(host string) ProxyType {
-	// Remove port if there is one.
-	if colon := strings.IndexByte(host, ':'); colon != -1 {
-		host = host[:colon]
-	}
-
+func (f *HostFilter) Test(host string, port string) ProxyType {
 	host = strings.ToLower(host)
 
 	// if host is TopLevel, like localhost.
@@ -208,18 +215,32 @@ func (f *HostFilter) Test(host string) ProxyType {
 		//		play.golang.org
 		//		golang.org
 		//		org
+		part := host
 		for {
-			// tslog.Red("test %s\n", host)
-			if ty, ok := f.hosts[host]; ok {
+			if ty, ok := f.hosts[part]; ok {
 				return ty
 			}
-			index := strings.IndexByte(host, '.')
+			index := strings.IndexByte(part, '.')
 			if index == -1 {
 				break
 			}
-			host = host[index+1:]
+			part = part[index+1:]
 		}
 	}
 
-	return proxyTypeDefault
+	var ptype = proxyTypeDefault
+
+	if port == "443" {
+		conn, err := tls.Dial("tcp4", host+":"+port, nil)
+		if err == nil {
+			conn.Close()
+			ptype = proxyTypeDirect
+			f.AddHost(host, ptype)
+		} else {
+			ptype = proxyTypeAuto
+			f.AddHost(host, ptype)
+		}
+	}
+
+	return ptype
 }
