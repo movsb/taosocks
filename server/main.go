@@ -13,6 +13,7 @@ import (
 )
 
 var gVersion = "taosocks/20180728"
+var gForward = "https://example.com"
 var gListen string
 var gKey string
 var tslog = &internal.TSLog{}
@@ -104,6 +105,14 @@ func doRelay(conn net.Conn, bio *bufio.ReadWriter) error {
 	return nil
 }
 
+func doForward(w http.ResponseWriter, req *http.Request) {
+	resp, err := http.Get(gForward + req.RequestURI)
+	if err == nil {
+		w.WriteHeader(resp.StatusCode)
+		io.Copy(w, resp.Body)
+	}
+}
+
 func handleRequest(w http.ResponseWriter, req *http.Request) {
 	ver := req.Header.Get("Upgrade")
 	auth := req.Header.Get("Authorization")
@@ -113,13 +122,13 @@ func handleRequest(w http.ResponseWriter, req *http.Request) {
 		conn, bio, _ := w.(http.Hijacker).Hijack()
 		doRelay(conn, bio)
 	} else {
-		// handle HTTP request here.
-		w.WriteHeader(http.StatusOK)
+		doForward(w, req)
 	}
 }
 
 func main() {
-	flag.StringVar(&gListen, "listen", "0.0.0.0:1081", "listen address(host:port)")
+	flag.StringVar(&gListen, "listen", "0.0.0.0:443", "listen address(host:port)")
+	flag.StringVar(&gForward, "forward", "https://example.com", "delegate website, format must be https://example.com")
 	flag.StringVar(&gKey, "key", "", "the key")
 	flag.Parse()
 
