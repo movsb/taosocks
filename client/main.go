@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/movsb/taosocks/internal"
+	"github.com/movsb/taosocks/common"
 )
 
 type xConfig struct {

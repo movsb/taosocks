@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/movsb/taosocks/internal"
+	"github.com/movsb/taosocks/common"
 )
 
 // Relayer exposes the interfaces for
