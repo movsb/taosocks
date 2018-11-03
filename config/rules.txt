@@ -7,17 +7,20 @@
 
 # 格式： 主机,规则
 
-# 域名采用精确判断，然后依次后缀判断，CIDR采用前缀判断
+# 域名先采用精确判断，然后依次后缀判断。CIDR采用前缀判断
 
-local,direct
-github.com,proxy
-youtube.com,proxy
-wikipedia.org,proxy
-googlevideo.com,proxy
-
+# Private Network CIDRs, partial
+# From https://en.wikipedia.org/wiki/Reserved_IP_addresses
 10.0.0.0/8,direct
+100.64.0.0/10,direct
 127.0.0.0/8,direct
-172.0.0.0/8,direct
+172.16.0.0/12,direct
 192.168.0.0/16,direct
 
+cn,direct
+local,direct
 
+s.click.taobao.com,reject
+doubleclick.net,reject
+cpro.baidu.com,reject
+cpro.baidustatic.com,reject

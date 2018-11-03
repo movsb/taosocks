@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"crypto/tls"
 	"io"
 	"net"
 	"os"
@@ -228,19 +227,16 @@ func (f *HostFilter) Test(host string, port string) ProxyType {
 		}
 	}
 
-	var ptype = proxyTypeDefault
-
 	if port == "443" {
-		conn, err := tls.Dial("tcp4", host+":"+port, nil)
-		if err == nil {
-			conn.Close()
-			ptype = proxyTypeDirect
-			f.AddHost(host, ptype)
-		} else {
-			ptype = proxyTypeAuto
-			f.AddHost(host, ptype)
+		hostport := host + ":" + port
+		ok := tlsChecker.Check(hostport)
+		if ok {
+			f.AddHost(host, proxyTypeDirect)
+			return proxyTypeDirect
 		}
+		f.AddHost(host, proxyTypeAuto)
+		return proxyTypeAuto
 	}
 
-	return ptype
+	return proxyTypeDefault
 }

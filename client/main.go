@@ -20,6 +20,7 @@ type xConfig struct {
 
 var config xConfig
 var filter HostFilter
+var tlsChecker *TLSChecker
 var tslog internal.TSLog
 
 // Server is a tcp server which listens on a single local port
@@ -96,8 +97,9 @@ func handleInterrupt() {
 
 func main() {
 	handleInterrupt()
-
 	parseConfig()
+
+	tlsChecker = NewTLSChecker()
 
 	filter.Init("config/rules.txt")
 	filter.LoadAuto("config/rules-auto.txt")
