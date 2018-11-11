@@ -16,7 +16,7 @@ var gVersion = "taosocks/20180728"
 var gForward = "https://example.com"
 var gListen string
 var gKey string
-var tslog = &internal.TSLog{}
+var tslog = &common.TSLog{}
 
 func doRelay(conn net.Conn, bio *bufio.ReadWriter) error {
 	var err error

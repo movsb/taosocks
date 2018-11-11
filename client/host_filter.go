@@ -13,12 +13,12 @@ import (
 type ProxyType byte
 
 const (
-	_ ProxyType = iota
-	proxyTypeDefault
-	proxyTypeDirect
-	proxyTypeProxy
-	proxyTypeReject
-	proxyTypeAuto
+	_                   ProxyType = iota // No rules applied
+	proxyTypeDirect                      // direct, from rules.txt
+	proxyTypeProxy                       // proxy, from rules.txt
+	proxyTypeReject                      // reject, from rules.txt
+	proxyTypeAutoDirect                  // direct, from checker, auto-generated
+	proxyTypeAutoProxy                   // proxy, from checker, auto-generated
 )
 
 // AddrType is
@@ -62,8 +62,15 @@ func (f *HostFilter) SaveAuto(path string) {
 	w := bufio.NewWriter(file)
 
 	for k, t := range f.hosts {
-		if t == proxyTypeAuto {
+		switch t {
+		case proxyTypeAutoDirect, proxyTypeAutoProxy:
 			w.WriteString(k)
+			switch t {
+			case proxyTypeAutoDirect:
+				w.WriteString(",auto-direct")
+			case proxyTypeAutoProxy:
+				w.WriteString(",auto-proxy")
+			}
 			w.WriteByte('\n')
 		}
 	}
@@ -81,17 +88,7 @@ func (f *HostFilter) LoadAuto(path string) {
 
 	defer file.Close()
 
-	scn := bufio.NewScanner(file)
-
-	n := 0
-
-	for scn.Scan() {
-		host := scn.Text()
-		f.hosts[host] = proxyTypeAuto
-		n++
-	}
-
-	tslog.Green("  加载了 %d 条自动规则", n)
+	f.scanFile(file)
 }
 
 // Init loads user-difined rules.
@@ -105,12 +102,12 @@ func (f *HostFilter) Init(path string) {
 	if file, err := os.Open(path); err != nil {
 		tslog.Red("rule file not found: %s\n", path)
 	} else {
-		f.scanFile(file, false)
+		f.scanFile(file)
 		file.Close()
 	}
 }
 
-func (f *HostFilter) scanFile(reader io.Reader, isTmp bool) {
+func (f *HostFilter) scanFile(reader io.Reader) {
 	scanner := bufio.NewScanner(reader)
 
 	for scanner.Scan() {
@@ -128,6 +125,10 @@ func (f *HostFilter) scanFile(reader io.Reader, isTmp bool) {
 				ty = proxyTypeProxy
 			case "reject":
 				ty = proxyTypeReject
+			case "auto-direct":
+				ty = proxyTypeAutoDirect
+			case "auto-proxy":
+				ty = proxyTypeAutoProxy
 			default:
 				tslog.Red("invalid proxy type: %s\n", toks[1])
 				continue
@@ -173,7 +174,8 @@ func (f *HostFilter) opRoutine() {
 		case true:
 			if _, ok := f.hosts[s.host]; !ok {
 				f.hosts[s.host] = s.ptype
-				if s.ptype == proxyTypeAuto {
+				switch s.ptype {
+				case proxyTypeAutoDirect, proxyTypeAutoProxy:
 					tslog.Green("+ 添加规则：%s", s.host)
 				}
 			}
@@ -227,16 +229,10 @@ func (f *HostFilter) Test(host string, port string) ProxyType {
 		}
 	}
 
-	if port == "443" {
-		hostport := host + ":" + port
-		ok := tlsChecker.Check(hostport)
-		if ok {
-			f.AddHost(host, proxyTypeDirect)
-			return proxyTypeDirect
-		}
-		f.AddHost(host, proxyTypeAuto)
-		return proxyTypeAuto
+	pty := proxyTypeAutoDirect
+	if !tcpChecker.Check(host, port) {
+		pty = proxyTypeAutoProxy
 	}
-
-	return proxyTypeDefault
+	f.AddHost(host, pty)
+	return pty
 }

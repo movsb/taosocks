@@ -8,9 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/movsb/taosocks/common"
@@ -48,7 +46,7 @@ func (r *LocalRelayer) Begin(addr string, src net.Conn) bool {
 
 	dst, err := net.DialTimeout("tcp", addr, 10*time.Second)
 	if err != nil {
-		tslog.Red("? Dial host:%s -  %s\n", addr, err)
+		tslog.Red("? Dial host:%s -  %s", addr, err)
 		return false
 	}
 
@@ -325,9 +323,9 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	var r Relayer
 
 	switch proxyType {
-	case proxyTypeDefault, proxyTypeDirect:
+	case proxyTypeDirect, proxyTypeAutoDirect:
 		r = &LocalRelayer{}
-	case proxyTypeProxy, proxyTypeAuto:
+	case proxyTypeProxy, proxyTypeAutoProxy:
 		r = &RemoteRelayer{}
 	case proxyTypeReject:
 		return errors.New("host is rejected")
@@ -353,14 +351,15 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 
 	if !began {
 		conn.Close()
-		if proxyType == proxyTypeAuto {
+		switch proxyType {
+		case proxyTypeAutoDirect, proxyTypeAutoProxy:
 			filter.DeleteHost(hostname)
 		}
 		return errors.New("no relayer can relay such host")
 	}
 
 	if useRemote {
-		filter.AddHost(hostname, proxyTypeAuto)
+		filter.AddHost(hostname, proxyTypeAutoProxy)
 	}
 
 	if beforeRelay != nil {
@@ -371,25 +370,7 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	}
 
 	rr := r.Relay()
-
-	if rr.nTx != 0 && rr.nRx == 0 {
-		isHTTPPort := portstr == "80" || portstr == "443"
-		isReset := false
-
-		if opErr, ok := rr.errRx.(*net.OpError); ok {
-			// TODO: 只能比较字符串？
-			isReset = strings.Contains(opErr.Err.Error(), syscall.ECONNRESET.Error())
-		}
-
-		if (isHTTPPort || isReset) && (proxyType == proxyTypeDefault || proxyType == proxyTypeAuto) {
-			switch r.(type) {
-			case *LocalRelayer:
-				filter.AddHost(hostname, proxyTypeAuto)
-			case *RemoteRelayer:
-				filter.DeleteHost(hostname)
-			}
-		}
-	}
+	_ = rr
 
 	return nil
 }
