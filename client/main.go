@@ -21,7 +21,7 @@ type xConfig struct {
 var config xConfig
 var filter HostFilter
 var tcpChecker *TCPChecker
-var tslog internal.TSLog
+var tslog common.TSLog
 
 // Server is a tcp server which listens on a single local port
 // to accept both incoming socks and http connections

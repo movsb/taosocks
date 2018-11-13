@@ -1,4 +1,4 @@
-package internal
+package common
 
 // This file contains the packet structures communicated between server and client
 

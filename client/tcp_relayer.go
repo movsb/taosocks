@@ -175,12 +175,12 @@ func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
 	enc := gob.NewEncoder(r.dst)
 	dec := gob.NewDecoder(r.dst)
 
-	err = enc.Encode(internal.OpenPacket{Addr: r.addr})
+	err = enc.Encode(common.OpenPacket{Addr: r.addr})
 	if err != nil {
 		return false
 	}
 
-	var oapkt internal.OpenAckPacket
+	var oapkt common.OpenAckPacket
 	err = dec.Decode(&oapkt)
 	if err != nil {
 		return false
@@ -202,7 +202,7 @@ func (r *RemoteRelayer) ToLocal(b []byte) error {
 
 // ToRemote implements Relayer.ToRemote.
 func (r *RemoteRelayer) ToRemote(b []byte) error {
-	var pkt internal.RelayPacket
+	var pkt common.RelayPacket
 	pkt.Data = b
 
 	enc := gob.NewEncoder(r.dst)
@@ -259,7 +259,7 @@ func (r *RemoteRelayer) Relay() *RelayResult {
 func (r *RemoteRelayer) src2dst() (int64, error) {
 	enc := gob.NewEncoder(r.dst)
 
-	buf := make([]byte, 4096)
+	buf := make([]byte, common.ReadBufSize)
 
 	var all int64
 	var err error
@@ -271,7 +271,7 @@ func (r *RemoteRelayer) src2dst() (int64, error) {
 			break
 		}
 
-		var pkt internal.RelayPacket
+		var pkt common.RelayPacket
 		pkt.Data = buf[:n]
 
 		err = enc.Encode(pkt)
@@ -293,7 +293,7 @@ func (r *RemoteRelayer) dst2src() (int64, error) {
 	var err error
 
 	for {
-		var pkt internal.RelayPacket
+		var pkt common.RelayPacket
 		err = dec.Decode(&pkt)
 		if err != nil {
 			// log.Printf("server reset: %s\n", err)
