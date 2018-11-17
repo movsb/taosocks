@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // ProxyType is
@@ -73,22 +74,18 @@ func isComment(line string) bool {
 	return reIsComment.MatchString(line)
 }
 
-// AutoRule is an auto-generated rule.
-type AutoRule struct {
-	add   bool
-	host  string
-	ptype ProxyType
-}
-
 // HostFilter returns the proxy type on specified host.
 type HostFilter struct {
-	ch    chan AutoRule
+	mu    sync.RWMutex
 	hosts map[string]ProxyType
 	cidrs map[*net.IPNet]ProxyType
 }
 
 // SaveAuto saves auto-generated rules.
 func (f *HostFilter) SaveAuto(path string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	file, err := os.Create(path)
 	if err != nil {
 		return
@@ -120,13 +117,10 @@ func (f *HostFilter) LoadAuto(path string) {
 	f.scanFile(file)
 }
 
-// Init loads user-difined rules.
+// Init loads user-defined rules.
 func (f *HostFilter) Init(path string) {
-	f.ch = make(chan AutoRule)
 	f.hosts = make(map[string]ProxyType)
 	f.cidrs = make(map[*net.IPNet]ProxyType)
-
-	go f.opRoutine()
 
 	if file, err := os.Open(path); err != nil {
 		tslog.Red("rule file not found: %s\n", path)
@@ -170,44 +164,32 @@ func (f *HostFilter) scanFile(reader io.Reader) {
 
 // AddHost adds a rule. (thread-safe)
 func (f *HostFilter) AddHost(host string, ptype ProxyType) {
-	f.ch <- AutoRule{
-		add:   true,
-		host:  host,
-		ptype: ptype,
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ty, ok := f.hosts[host]
+	f.hosts[host] = ptype
+	if !ok {
+		tslog.Green("+ 添加规则：[%s] %s", ptype, host)
+	} else {
+		if ty != ptype {
+			tslog.Green("* 改变规则：[%s -> %s] %s", ty, ptype, host)
+		}
 	}
 }
 
 // DeleteHost deletes a rule. (thread-safe)
 func (f *HostFilter) DeleteHost(host string) {
-	f.ch <- AutoRule{
-		add:  false,
-		host: host,
-	}
-}
-
-func (f *HostFilter) opRoutine() {
-	for {
-		s := <-f.ch
-		switch s.add {
-		case true:
-			ty, ok := f.hosts[s.host]
-			f.hosts[s.host] = s.ptype
-			if !ok {
-				tslog.Green("+ 添加规则：[%s] %s", s.ptype, s.host)
-			} else {
-				if ty != s.ptype {
-					tslog.Green("* 改变规则：[%s -> %s] %s", ty, s.ptype, s.host)
-				}
-			}
-		case false:
-			delete(f.hosts, s.host)
-			tslog.Red("- 删除规则：%s", s.host)
-		}
-	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.hosts, host)
+	tslog.Red("- 删除规则：%s", host)
 }
 
 // Test returns proxy type for host host.
 func (f *HostFilter) Test(host string, port string) ProxyType {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
 	host = strings.ToLower(host)
 
 	// if host is TopLevel, like localhost.

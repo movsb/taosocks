@@ -20,8 +20,13 @@ type xConfig struct {
 
 var config xConfig
 var filter HostFilter
-var tcpChecker *TCPChecker
+var tcpChecker = NewTCPChecker()
 var tslog common.TSLog
+
+const (
+	rulePath     = `config/rules.txt`
+	autoRulePath = `config/auto-rules.txt`
+)
 
 // Server is a tcp server which listens on a single local port
 // to accept both incoming socks and http connections
@@ -29,18 +34,18 @@ type Server struct {
 }
 
 // Run starts to listen on the network and address
-func (s *Server) Run(network, addr string) {
+func (s *Server) Run(network, addr string) error {
 	l, err := net.Listen(network, addr)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	for {
 		conn, err := l.Accept()
 
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		go s.handle(conn)
@@ -89,7 +94,7 @@ func handleInterrupt() {
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
-		filter.SaveAuto("config/auto-rules.txt")
+		filter.SaveAuto(autoRulePath)
 		fmt.Println()
 		os.Exit(0)
 	}()
@@ -99,11 +104,12 @@ func main() {
 	handleInterrupt()
 	parseConfig()
 
-	tcpChecker = NewTCPChecker()
-
-	filter.Init("config/rules.txt")
-	filter.LoadAuto("config/auto-rules.txt")
+	filter.Init(rulePath)
+	filter.LoadAuto(autoRulePath)
 
 	s := Server{}
-	s.Run("tcp4", config.Listen)
+	if err := s.Run("tcp4", config.Listen); err != nil {
+		filter.SaveAuto(autoRulePath)
+		panic(err)
+	}
 }
