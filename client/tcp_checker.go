@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"crypto/tls"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -53,6 +54,8 @@ func (t *TCPChecker) check(host, port string) (ok bool) {
 		t.finish(hostport, ok)
 	}()
 	switch port {
+	case "80":
+		return t.checkHTTP80(hostport)
 	case "443":
 		return t.checkTLS(hostport)
 	default:
@@ -81,6 +84,16 @@ func (t *TCPChecker) checkTCP(hostport string) bool {
 		return false
 	}
 	defer conn.Close()
+	return true
+}
+
+func (t *TCPChecker) checkHTTP80(hostport string) bool {
+	u := "http://" + hostport + "/"
+	resp, err := http.Get(u)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
 	return true
 }
 
