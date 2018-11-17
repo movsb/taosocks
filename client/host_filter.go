@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -13,13 +14,48 @@ import (
 type ProxyType byte
 
 const (
-	_                   ProxyType = iota // No rules applied
-	proxyTypeDirect                      // direct, from rules.txt
-	proxyTypeProxy                       // proxy, from rules.txt
-	proxyTypeReject                      // reject, from rules.txt
-	proxyTypeAutoDirect                  // direct, from checker, auto-generated
-	proxyTypeAutoProxy                   // proxy, from checker, auto-generated
+	_                   ProxyType = iota
+	proxyTypeDirect               // direct, from rules.txt
+	proxyTypeProxy                // proxy, from rules.txt
+	proxyTypeReject               // reject, from rules.txt
+	proxyTypeAutoDirect           // direct, from checker, auto-generated
+	proxyTypeAutoProxy            // proxy, from checker, auto-generated
 )
+
+func (t ProxyType) String() string {
+	switch t {
+	case proxyTypeDirect:
+		return "direct"
+	case proxyTypeProxy:
+		return "proxy"
+	case proxyTypeReject:
+		return "reject"
+	case proxyTypeAutoDirect:
+		return "auto-direct"
+	case proxyTypeAutoProxy:
+		return "auto-proxy"
+	default:
+		return "unknown"
+	}
+}
+
+// ProxyTypeFromString is
+func ProxyTypeFromString(name string) ProxyType {
+	switch name {
+	case "direct":
+		return proxyTypeDirect
+	case "proxy":
+		return proxyTypeProxy
+	case "reject":
+		return proxyTypeReject
+	case "auto-direct":
+		return proxyTypeAutoDirect
+	case "auto-proxy":
+		return proxyTypeAutoProxy
+	default:
+		return 0
+	}
+}
 
 // AddrType is
 type AddrType uint
@@ -64,14 +100,7 @@ func (f *HostFilter) SaveAuto(path string) {
 	for k, t := range f.hosts {
 		switch t {
 		case proxyTypeAutoDirect, proxyTypeAutoProxy:
-			w.WriteString(k)
-			switch t {
-			case proxyTypeAutoDirect:
-				w.WriteString(",auto-direct")
-			case proxyTypeAutoProxy:
-				w.WriteString(",auto-proxy")
-			}
-			w.WriteByte('\n')
+			fmt.Fprintf(w, "%s,%s\n", k, t)
 		}
 	}
 
@@ -117,29 +146,18 @@ func (f *HostFilter) scanFile(reader io.Reader) {
 		}
 		toks := strings.Split(rule, ",")
 		if len(toks) == 2 {
-			var ty ProxyType
-			switch toks[1] {
-			case "direct":
-				ty = proxyTypeDirect
-			case "proxy":
-				ty = proxyTypeProxy
-			case "reject":
-				ty = proxyTypeReject
-			case "auto-direct":
-				ty = proxyTypeAutoDirect
-			case "auto-proxy":
-				ty = proxyTypeAutoProxy
-			default:
+			ptype := ProxyTypeFromString(toks[1])
+			if ptype == 0 {
 				tslog.Red("invalid proxy type: %s\n", toks[1])
 				continue
 			}
 
 			if strings.IndexByte(toks[0], '/') == -1 {
-				f.hosts[toks[0]] = ty
+				f.hosts[toks[0]] = ptype
 			} else {
 				_, ipnet, err := net.ParseCIDR(toks[0])
 				if err == nil {
-					f.cidrs[ipnet] = ty
+					f.cidrs[ipnet] = ptype
 				} else {
 					tslog.Red("bad cidr: %s\n", toks[0])
 				}
@@ -176,7 +194,7 @@ func (f *HostFilter) opRoutine() {
 				f.hosts[s.host] = s.ptype
 				switch s.ptype {
 				case proxyTypeAutoDirect, proxyTypeAutoProxy:
-					tslog.Green("+ 添加规则：%s", s.host)
+					tslog.Green("+ 添加规则：[%s] %s", s.ptype, s.host)
 				}
 			}
 		case false:
