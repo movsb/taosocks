@@ -190,11 +190,13 @@ func (f *HostFilter) opRoutine() {
 		s := <-f.ch
 		switch s.add {
 		case true:
-			if _, ok := f.hosts[s.host]; !ok {
-				f.hosts[s.host] = s.ptype
-				switch s.ptype {
-				case proxyTypeAutoDirect, proxyTypeAutoProxy:
-					tslog.Green("+ 添加规则：[%s] %s", s.ptype, s.host)
+			ty, ok := f.hosts[s.host]
+			f.hosts[s.host] = s.ptype
+			if !ok {
+				tslog.Green("+ 添加规则：[%s] %s", s.ptype, s.host)
+			} else {
+				if ty != s.ptype {
+					tslog.Green("* 改变规则：[%s -> %s] %s", ty, s.ptype, s.host)
 				}
 			}
 		case false:
