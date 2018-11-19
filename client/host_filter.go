@@ -15,7 +15,7 @@ import (
 type ProxyType byte
 
 const (
-	_                   ProxyType = iota
+	proxyTypeNone       ProxyType = iota
 	proxyTypeDirect               // direct, from rules.txt
 	proxyTypeProxy                // proxy, from rules.txt
 	proxyTypeReject               // reject, from rules.txt
@@ -186,7 +186,18 @@ func (f *HostFilter) DeleteHost(host string) {
 }
 
 // Test returns proxy type for host host.
-func (f *HostFilter) Test(host string, port string) ProxyType {
+func (f *HostFilter) Test(host string, port string) (proxyType ProxyType) {
+	defer func() {
+		if proxyType == proxyTypeNone {
+			pty := proxyTypeAutoDirect
+			if !tcpChecker.Check(host, port) {
+				pty = proxyTypeAutoProxy
+			}
+			f.AddHost(host, pty)
+			proxyType = pty
+		}
+	}()
+
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -231,10 +242,5 @@ func (f *HostFilter) Test(host string, port string) ProxyType {
 		}
 	}
 
-	pty := proxyTypeAutoDirect
-	if !tcpChecker.Check(host, port) {
-		pty = proxyTypeAutoProxy
-	}
-	f.AddHost(host, pty)
-	return pty
+	return proxyTypeNone
 }
