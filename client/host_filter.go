@@ -169,10 +169,10 @@ func (f *HostFilter) AddHost(host string, ptype ProxyType) {
 	ty, ok := f.hosts[host]
 	f.hosts[host] = ptype
 	if !ok {
-		tslog.Green("+ 添加规则：[%s] %s", ptype, host)
+		tslog.Green("+ Add Rule [%s] %s", ptype, host)
 	} else {
 		if ty != ptype {
-			tslog.Green("* 改变规则：[%s -> %s] %s", ty, ptype, host)
+			tslog.Green("* Change Rule [%s -> %s] %s", ty, ptype, host)
 		}
 	}
 }
@@ -182,7 +182,7 @@ func (f *HostFilter) DeleteHost(host string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.hosts, host)
-	tslog.Red("- 删除规则：%s", host)
+	tslog.Red("- Delete Rule %s", host)
 }
 
 // Test returns proxy type for host host.

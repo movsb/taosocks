@@ -17,7 +17,7 @@ import (
 // Relayer exposes the interfaces for
 // relaying a connection
 type Relayer interface {
-	Begin(addr string, src net.Conn) bool
+	Begin(addr string, src net.Conn) error
 	Relay() *RelayResult
 	ToRemote(b []byte) error
 	ToLocal(b []byte) error
@@ -40,18 +40,18 @@ type LocalRelayer struct {
 }
 
 // Begin implements Relayer.Begin.
-func (r *LocalRelayer) Begin(addr string, src net.Conn) bool {
+func (r *LocalRelayer) Begin(addr string, src net.Conn) error {
 	r.src = src
 	r.addr = addr
 
 	dst, err := net.DialTimeout("tcp", addr, 10*time.Second)
 	if err != nil {
 		tslog.Red("? Dial host:%s -  %s", addr, err)
-		return false
+		return err
 	}
 
 	r.dst = dst
-	return true
+	return nil
 }
 
 // ToLocal implements Relayer.ToLocal.
@@ -109,6 +109,14 @@ func (r *LocalRelayer) Relay() *RelayResult {
 
 const gVersion string = "taosocks/20180728"
 
+var (
+	// ErrCannotDialRemoteServer is
+	ErrCannotDialRemoteServer = errors.New("cannot dial remote server")
+
+	// ErrRemoteServerCannotConnectHost is
+	ErrRemoteServerCannotConnectHost = errors.New("remote proxy server cannot connect to the specified host")
+)
+
 // RemoteRelayer is a relayer that relays all
 // traffics through remote servers by using
 // taosocks protocol
@@ -160,14 +168,15 @@ func (r *RemoteRelayer) dialServer() (net.Conn, error) {
 }
 
 // Begin implements Relayer.Begin.
-func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
+func (r *RemoteRelayer) Begin(addr string, src net.Conn) error {
 	r.src = src
 	r.addr = addr
 
 	dst, err := r.dialServer()
 	if err != nil {
 		tslog.Red("%s", err)
-		return false
+		// return err
+		return ErrCannotDialRemoteServer
 	}
 
 	r.dst = dst
@@ -177,20 +186,20 @@ func (r *RemoteRelayer) Begin(addr string, src net.Conn) bool {
 
 	err = enc.Encode(common.OpenPacket{Addr: r.addr})
 	if err != nil {
-		return false
+		return err
 	}
 
 	var oapkt common.OpenAckPacket
 	err = dec.Decode(&oapkt)
 	if err != nil {
-		return false
+		return err
 	}
 
 	if !oapkt.Status {
-		return false
+		return ErrRemoteServerCannotConnectHost
 	}
 
-	return true
+	return nil
 }
 
 // ToLocal implements Relayer.ToLocal.
@@ -331,29 +340,33 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 		return errors.New("host is rejected")
 	}
 
-	began := false
+	var beginErr error
 	useRemote := false
 
-	if !r.Begin(host, conn) {
+	if err := r.Begin(host, conn); err != nil {
+		beginErr = err
 		switch r.(type) {
 		case *LocalRelayer:
 			if proxyType != proxyTypeDirect {
 				r = &RemoteRelayer{}
-				if r.Begin(host, conn) {
-					began = true
+				if err := r.Begin(host, conn); err == nil {
+					beginErr = nil
 					useRemote = true
 				}
 			}
 		}
-	} else {
-		began = true
 	}
 
-	if !began {
+	if beginErr != nil {
 		conn.Close()
-		switch proxyType {
-		case proxyTypeAutoDirect, proxyTypeAutoProxy:
-			filter.DeleteHost(hostname)
+		// If the host is not connected to a network, remote relayer
+		// may report an error not correspond to the host itself.
+		// At this time, we should not remote the rules we already have.
+		if beginErr != ErrCannotDialRemoteServer {
+			switch proxyType {
+			case proxyTypeAutoDirect, proxyTypeAutoProxy:
+				filter.DeleteHost(hostname)
+			}
 		}
 		return errors.New("no relayer can relay such host")
 	}
