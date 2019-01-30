@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+const (
+	userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:64.0) Gecko/20100101 Firefox/64.0"
+)
+
 type _TcpCheckContext struct {
 	wg *sync.WaitGroup
 	ok bool
@@ -89,7 +93,9 @@ func (t *TCPChecker) checkTCP(hostport string) bool {
 
 func (t *TCPChecker) checkHTTP80(hostport string) bool {
 	u := "http://" + hostport + "/"
-	resp, err := http.Get(u)
+	req, _ := http.NewRequest(http.MethodGet, u, nil)
+	req.Header.Set("User-Agent", userAgent)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return false
 	}

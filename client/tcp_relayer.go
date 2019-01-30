@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -337,7 +338,7 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	case proxyTypeProxy, proxyTypeAutoProxy:
 		r = &RemoteRelayer{}
 	case proxyTypeReject:
-		return errors.New("host is rejected")
+		return fmt.Errorf("x host is rejected: %s", hostname)
 	}
 
 	var beginErr error
