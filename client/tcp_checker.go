@@ -95,7 +95,10 @@ func (t *TCPChecker) checkHTTP80(hostport string) bool {
 	u := "http://" + hostport + "/"
 	req, _ := http.NewRequest(http.MethodGet, u, nil)
 	req.Header.Set("User-Agent", userAgent)
-	resp, err := http.DefaultClient.Do(req)
+	httpClient := http.Client{
+		Timeout: time.Second * 10,
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return false
 	}
