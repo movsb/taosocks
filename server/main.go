@@ -26,16 +26,16 @@ func doRelay(conn net.Conn, bio *bufio.ReadWriter) error {
 	enc := gob.NewEncoder(bio)
 	dec := gob.NewDecoder(bio)
 
-	var openPkt common.OpenPacket
-	if err = dec.Decode(&openPkt); err != nil {
+	var openMsg common.OpenMessage
+	if err = dec.Decode(&openMsg); err != nil {
 		return err
 	}
 
-	tslog.Log("> %s", openPkt.Addr)
+	tslog.Log("> %s", openMsg.Addr)
 
-	outConn, err := net.Dial("tcp", openPkt.Addr)
+	outConn, err := net.Dial("tcp", openMsg.Addr)
 	if err != nil {
-		enc.Encode(common.OpenAckPacket{
+		enc.Encode(common.OpenAckMessage{
 			Status: false,
 		})
 		bio.Flush()
@@ -44,7 +44,7 @@ func doRelay(conn net.Conn, bio *bufio.ReadWriter) error {
 
 	defer outConn.Close()
 
-	enc.Encode(common.OpenAckPacket{
+	enc.Encode(common.OpenAckMessage{
 		Status: true,
 	})
 
@@ -66,10 +66,10 @@ func doRelay(conn net.Conn, bio *bufio.ReadWriter) error {
 				return
 			}
 
-			var pkt common.RelayPacket
-			pkt.Data = buf[:n]
+			var msg common.RelayMessage
+			msg.Data = buf[:n]
 
-			if err := enc.Encode(&pkt); err != nil {
+			if err := enc.Encode(&msg); err != nil {
 				tslog.Red("%s", err.Error())
 				return
 			}
@@ -82,15 +82,15 @@ func doRelay(conn net.Conn, bio *bufio.ReadWriter) error {
 		defer wg.Done()
 
 		for {
-			var pkt common.RelayPacket
-			if err := dec.Decode(&pkt); err != nil {
+			var msg common.RelayMessage
+			if err := dec.Decode(&msg); err != nil {
 				if err != io.EOF {
 					tslog.Red("%s", err.Error())
 				}
 				return
 			}
 
-			_, err := outConn.Write(pkt.Data)
+			_, err := outConn.Write(msg.Data)
 			if err != nil {
 				tslog.Red("%s", err.Error())
 				return
@@ -100,7 +100,7 @@ func doRelay(conn net.Conn, bio *bufio.ReadWriter) error {
 
 	wg.Wait()
 
-	tslog.Gray("< %s", openPkt.Addr)
+	tslog.Gray("< %s", openMsg.Addr)
 
 	return nil
 }
