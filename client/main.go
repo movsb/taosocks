@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/movsb/taosocks/common"
 )
@@ -91,7 +92,9 @@ func parseConfig() {
 
 func handleInterrupt() {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, syscall.SIGINT)
+	signal.Notify(c, syscall.SIGKILL)
+	signal.Notify(c, syscall.SIGTERM)
 	go func() {
 		<-c
 		filter.SaveAuto(autoRulePath)
