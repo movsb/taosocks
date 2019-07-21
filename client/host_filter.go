@@ -123,7 +123,7 @@ func (f *HostFilter) Init(path string) {
 	f.cidrs = make(map[*net.IPNet]ProxyType)
 
 	if file, err := os.Open(path); err != nil {
-		tslog.Red("rule file not found: %s\n", path)
+		tslog.Red("rule file not found: %s", path)
 	} else {
 		f.scanFile(file)
 		file.Close()
@@ -142,7 +142,7 @@ func (f *HostFilter) scanFile(reader io.Reader) {
 		if len(toks) == 2 {
 			ptype := ProxyTypeFromString(toks[1])
 			if ptype == 0 {
-				tslog.Red("invalid proxy type: %s\n", toks[1])
+				tslog.Red("invalid proxy type: %s", toks[1])
 				continue
 			}
 
@@ -153,11 +153,11 @@ func (f *HostFilter) scanFile(reader io.Reader) {
 				if err == nil {
 					f.cidrs[ipnet] = ptype
 				} else {
-					tslog.Red("bad cidr: %s\n", toks[0])
+					tslog.Red("bad cidr: %s", toks[0])
 				}
 			}
 		} else {
-			tslog.Red("invalid rule: %s\n", rule)
+			tslog.Red("invalid rule: %s", rule)
 		}
 	}
 }

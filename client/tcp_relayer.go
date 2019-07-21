@@ -47,7 +47,7 @@ func (r *LocalRelayer) Begin(addr string, src net.Conn) error {
 
 	dst, err := net.DialTimeout("tcp", addr, 10*time.Second)
 	if err != nil {
-		tslog.Red("? Dial host:%s -  %s", addr, err)
+		tslog.Red("? Dial host:%s -  %v", addr, err)
 		return err
 	}
 
@@ -175,8 +175,7 @@ func (r *RemoteRelayer) Begin(addr string, src net.Conn) error {
 
 	dst, err := r.dialServer()
 	if err != nil {
-		tslog.Red("%s", err)
-		// return err
+		tslog.Red("%v", err)
 		return ErrCannotDialRemoteServer
 	}
 
@@ -361,8 +360,8 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	if beginErr != nil {
 		conn.Close()
 		// If the host is not connected to a network, remote relayer
-		// may report an error not correspond to the host itself.
-		// At this time, we should not remote the rules we already have.
+		// may report an error not corresponded to the host itself.
+		// At this time, we should not remove the rules we already have.
 		if beginErr != ErrCannotDialRemoteServer {
 			switch proxyType {
 			case proxyTypeAutoDirect, proxyTypeAutoProxy:

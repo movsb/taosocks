@@ -84,7 +84,7 @@ func (t *TCPChecker) finish(hostport string, ok bool) {
 func (t *TCPChecker) checkTCP(hostport string) bool {
 	conn, err := net.DialTimeout("tcp4", hostport, time.Second*10)
 	if err != nil {
-		tslog.Red("? net.DialTimeout error: %s: %s", hostport, err)
+		tslog.Red("? net.DialTimeout error: %s: %v", hostport, err)
 		return false
 	}
 	defer conn.Close()
@@ -109,7 +109,7 @@ func (t *TCPChecker) checkHTTP80(hostport string) bool {
 func (t *TCPChecker) checkTLS(hostport string) bool {
 	conn, err := net.DialTimeout("tcp4", hostport, time.Second*10)
 	if err != nil {
-		tslog.Red("? net.DialTimeout error: %s: %s", hostport, err)
+		tslog.Red("? net.DialTimeout error: %s: %v", hostport, err)
 		return false
 	}
 	host, _, _ := net.SplitHostPort(hostport)
@@ -117,7 +117,7 @@ func (t *TCPChecker) checkTLS(hostport string) bool {
 	err = tlsClient.Handshake()
 	tlsClient.Close()
 	if err != nil {
-		tslog.Red("? tls handshake error: %s: %s", hostport, err)
+		tslog.Red("? tls handshake error: %s: %v", hostport, err)
 		return false
 	}
 	return true
