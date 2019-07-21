@@ -17,6 +17,7 @@ type xConfig struct {
 	Server   string
 	Insecure bool
 	Key      string
+	Path     string
 }
 
 var config xConfig
@@ -87,6 +88,7 @@ func parseConfig() {
 	flag.StringVar(&config.Server, "server", "127.0.0.1:1081", "server address(host:port)")
 	flag.BoolVar(&config.Insecure, "insecure", false, "don't verify server certificate")
 	flag.StringVar(&config.Key, "key", "", "login key")
+	flag.StringVar(&config.Path, "path", "/", "/your/path")
 	flag.Parse()
 }
 

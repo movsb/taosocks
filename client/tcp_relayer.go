@@ -108,7 +108,7 @@ func (r *LocalRelayer) Relay() *RelayResult {
 	}
 }
 
-const gVersion string = "taosocks/20180728"
+const gVersion string = "taosocks/20190722"
 
 var (
 	// ErrCannotDialRemoteServer is
@@ -138,7 +138,10 @@ func (r *RemoteRelayer) dialServer() (net.Conn, error) {
 	}
 
 	// the upgrade request
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, err := http.NewRequest("GET", config.Path, nil)
+	if err != nil {
+		return nil, err
+	}
 	req.Host = config.Server
 	req.Header.Add("Connection", "upgrade")
 	req.Header.Add("Upgrade", gVersion)

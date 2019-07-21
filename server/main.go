@@ -12,10 +12,11 @@ import (
 	"github.com/movsb/taosocks/common"
 )
 
-var gVersion = "taosocks/20180728"
+var gVersion = "taosocks/20190722"
 var gForward = "https://example.com"
 var gListen string
 var gKey string
+var gPath string
 var tslog = &common.TSLog{}
 
 func doRelay(conn net.Conn, bio *bufio.ReadWriter) error {
@@ -116,8 +117,9 @@ func doForward(w http.ResponseWriter, req *http.Request) {
 func handleRequest(w http.ResponseWriter, req *http.Request) {
 	ver := req.Header.Get("Upgrade")
 	auth := req.Header.Get("Authorization")
+	path := req.URL.Path
 
-	if ver == gVersion && auth == "taosocks "+gKey {
+	if path == gPath && ver == gVersion && auth == "taosocks "+gKey {
 		w.WriteHeader(http.StatusSwitchingProtocols)
 		conn, bio, _ := w.(http.Hijacker).Hijack()
 		doRelay(conn, bio)
@@ -127,9 +129,10 @@ func handleRequest(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	flag.StringVar(&gListen, "listen", "0.0.0.0:443", "listen address(host:port)")
+	flag.StringVar(&gListen, "listen", "127.0.0.1:1081", "listen address(host:port)")
 	flag.StringVar(&gForward, "forward", "https://example.com", "delegate website, format must be https://example.com")
 	flag.StringVar(&gKey, "key", "", "the key")
+	flag.StringVar(&gPath, "path", "/", "/your/path")
 	flag.Parse()
 
 	http.HandleFunc("/", handleRequest)
