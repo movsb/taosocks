@@ -40,6 +40,16 @@ func (t ProxyType) String() string {
 	}
 }
 
+// IsAuto returns true if the rule is an auto-generated rule.
+func (t ProxyType) IsAuto() bool {
+	switch t {
+	case proxyTypeAutoDirect, proxyTypeAutoProxy:
+		return true
+	default:
+		return false
+	}
+}
+
 // ProxyTypeFromString is
 func ProxyTypeFromString(name string) ProxyType {
 	switch name {
@@ -54,7 +64,7 @@ func ProxyTypeFromString(name string) ProxyType {
 	case "auto-proxy":
 		return proxyTypeAutoProxy
 	default:
-		return 0
+		return proxyTypeNone
 	}
 }
 
@@ -232,7 +242,10 @@ func (f *HostFilter) Test(host string, port string) (proxyType ProxyType) {
 		part := host
 		for {
 			if ty, ok := f.hosts[part]; ok {
-				return ty
+				// don't apply auto rules to suffix tests
+				if !ty.IsAuto() {
+					return ty
+				}
 			}
 			index := strings.IndexByte(part, '.')
 			if index == -1 {
