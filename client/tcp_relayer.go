@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -330,7 +331,8 @@ type SmartRelayer struct {
 // Relay relays
 func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Relayer) error) error {
 	hostname, portstr, _ := net.SplitHostPort(host)
-	proxyType := filter.Test(hostname, portstr)
+	port, _ := strconv.Atoi(portstr)
+	proxyType := filter.Test(hostname, port)
 
 	var r Relayer
 
@@ -375,7 +377,7 @@ func (o *SmartRelayer) Relay(host string, conn net.Conn, beforeRelay func(r Rela
 	}
 
 	if useRemote {
-		filter.AddHost(hostname, proxyTypeAutoProxy)
+		filter.AddHost(hostname, port, proxyTypeAutoProxy)
 	}
 
 	if beforeRelay != nil {

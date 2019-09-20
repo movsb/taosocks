@@ -3,6 +3,7 @@ package main
 import (
 	"container/list"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -32,8 +33,8 @@ func NewTCPChecker() *TCPChecker {
 }
 
 // Check returns true if a TCP connection can be correctly made.
-func (t *TCPChecker) Check(host, port string) bool {
-	hostport := net.JoinHostPort(host, port)
+func (t *TCPChecker) Check(host string, port int) bool {
+	hostport := net.JoinHostPort(host, fmt.Sprint(port))
 	t.lock.Lock()
 	var lst *list.List
 	if l, ok := t.maps[hostport]; ok {
@@ -52,15 +53,15 @@ func (t *TCPChecker) Check(host, port string) bool {
 	return ctx.ok
 }
 
-func (t *TCPChecker) check(host, port string) (ok bool) {
-	hostport := net.JoinHostPort(host, port)
+func (t *TCPChecker) check(host string, port int) (ok bool) {
+	hostport := net.JoinHostPort(host, fmt.Sprint(port))
 	defer func() {
 		t.finish(hostport, ok)
 	}()
 	switch port {
-	case "80":
+	case 80:
 		return t.checkHTTP80(hostport)
-	case "443":
+	case 443:
 		return t.checkTLS(hostport)
 	default:
 		return t.checkTCP(hostport)

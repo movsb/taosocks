@@ -27,7 +27,7 @@ var tslog common.TSLog
 
 const (
 	rulePath     = `config/rules.txt`
-	autoRulePath = `config/auto-rules.txt`
+	autoRulePath = `config/auto-rules.yml`
 )
 
 // Server is a tcp server which listens on a single local port
